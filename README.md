@@ -124,12 +124,20 @@
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d '{"text": "In today's rapidly evolving digital landscape, it is important to note that artificial intelligence plays a crucial role in shaping the future of technology. Furthermore, organizations must carefully consider several key factors to ensure successful implementation. Additionally, the integration of innovative solutions can significantly enhance overall efficiency and productivity.", "creator_id": "matt"}'
 ```
 
 ```json
-
+{
+  "confidence": 0.5,
+  "content_id": "3da4d7b9-ee2d-4332-b656-890b1e501894",
+  "guess": "unsure",
+  "label": "PLACEHOLDER",
+  "model_score": 0.7818
+}
 ```
+
+*(Milestone 3: only signal one is wired in, so `confidence`, `guess` and `label` are placeholders and there is no `style_score` yet.)*
 
 **An appeal**
 
@@ -150,7 +158,22 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 ```
 
 ```json
-
+{
+  "count": 1,
+  "entries": [
+    {
+      "combined_score": null,
+      "content_id": "3da4d7b9-ee2d-4332-b656-890b1e501894",
+      "creator_id": "matt",
+      "guess": "unsure",
+      "label": "PLACEHOLDER",
+      "model_score": 0.7818,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-10-31T02:14:09+00:00"
+    }
+  ]
+}
 ```
 
 ---
