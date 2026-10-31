@@ -53,28 +53,46 @@
 
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** Perplexity under gpt2 (`detector.py`): how surprised a language model is by each next word, squashed onto 0–1. Low perplexity gives a high AI score.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** A model writes by picking likely next words, so its output is easy for a model to predict. Human prose has odd word choices and specifics a model doesn't expect.
 
 **What it can't see:**
+- **Predictable is not the same as machine-written.** Plain, common-word, short-sentence human writing scores as AI: non-native writers, younger writers, anyone writing simply on purpose. My plain human samples scored 0.66 against 0.80 for clearly AI text.
+- **Famous or memorised text reads as machine-like.** The opening of Darwin's *Origin of Species* scored 0.65, probably because gpt2 has seen it. Formal prose does not automatically read human.
+- **Edits shift the score a little, not a lot.** Lightly editing AI text moved it from 0.80 to 0.70.
+- **It only reads the first ~300 words** (400 tokens), so anything later is invisible.
+- **gpt2 is old.** Text from a modern model is not especially predictable *to gpt2*.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text (`stylometry.py`), not its meaning. Two measures, each scaled to 0–1 and flipped so higher means more AI, then combined 0.6 / 0.4:
+- **Sentence-length spread** (standard deviation ÷ mean of sentence length). Low means more AI. At or above 0.65 reads fully human; at or below 0.25 fully AI. Weight 0.6.
+- **Punctuation variety:** how many of nine mark kinds (commas, semicolons, colons, dashes, brackets, quotes, `!`, `?`) appear at all. Narrow means more AI. At or above 0.45 of the kinds reads fully human. Weight 0.4.
+- **Type-token ratio is computed but not scored.** On my inputs it ran the wrong way: the AI sample had the more varied vocabulary (0.89 against 0.86 for clearly human). With five samples that is an observation, not a finding, but I won't score on a measure pointing the wrong way.
+- A text under two sentences has no spread, so it gets a neutral 0.5.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** "Most likely next word" pushes generated prose toward even, mid-length sentences. Human writing is lumpier.
 
 **What it can't see:**
+- **It cannot read.** Meaning is invisible to it.
+- **Plain human writing looks even.** A plain paragraph I wrote with short sentences and no commas scored **0.97**, higher than the AI text (0.80). Short, simple sentences are exactly what this measures as machine-like.
+- **Cheap shape edits fool it.** Typos, chopped-up sentences, a pasted quotation or inserted fragments make AI text look lumpy.
+- **Genre confuses it.** Lists, legal text, and technical or children's writing have uniform shape for innocent reasons.
+- **Short texts are noisy.** The 0.65 / 0.25 scaling points are my reading of five inputs, not a calibrated standard.
+
+The two blind spots are different (word choice vs shape), but they overlap on the one group that matters most: plain human writing is wrongly accused by both.
 
 ### The combining rule
 
 <!-- Write the rule in words, then give the numbers. What happens when the two
      signals disagree? -->
 
-**The rule:**
+**The rule:** The expensive mistake is accusing a real writer, so it takes both signals to agree before anyone is called AI. The combined score is a 50 / 50 average of the two. But if either signal alone is below the human threshold, the combined score is capped just under the AI threshold. When the signals split, the writer lands in "unsure", never "AI". The cost is that AI text that fools one signal gets through. I accept that.
 
-**The numbers:**
+**What the rule can't do:** It cannot rescue someone both signals get wrong. A plain human paragraph scored 0.66 and 0.97, so it combines to about 0.81, the same as clearly AI text. Averaging and capping don't help when both signals are wrong in the same direction. Only the thresholds can, and moving them also lets AI text through.
+
+**The numbers:** Weights 0.5 / 0.5 (`config.py`). Cap on the combined score: `AI_THRESHOLD - 0.01`, applied when `min(model, style) < HUMAN_THRESHOLD`. Thresholds are still the starter's 0.35 and 0.65 until Milestone 5.
 
 **Where it lives:** `scoring.py::combine_signals`
 

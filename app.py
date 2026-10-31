@@ -200,6 +200,8 @@ def submit():
     a malformed input is one of the most common real failures there is.
     """
     import detector
+    import scoring
+    import stylometry
 
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
@@ -222,11 +224,15 @@ def submit():
     except detector.DetectorUnavailable as exc:
         return jsonify({"error": "detector_unavailable", "message": str(exc)}), 503
 
+    style_score = stylometry.style_signal(text)
+    combined_score = scoring.combine_signals(model_score, style_score)
+
     content_id = str(uuid.uuid4())
 
-    # Placeholders until the second signal and the label exist (Milestones 4, 5).
+    # Placeholders until the label exists (Milestone 5). `confidence` is the
+    # combined score: higher means more likely AI.
     guess = "unsure"
-    confidence = 0.5
+    confidence = combined_score
     label = "PLACEHOLDER"
 
     audit.log_decision(
@@ -234,6 +240,8 @@ def submit():
         creator_id=creator_id,
         guess=guess,
         model_score=model_score,
+        style_score=style_score,
+        combined_score=combined_score,
         label=label,
         status="decided",
     )
@@ -244,6 +252,7 @@ def submit():
         "confidence": confidence,
         "label": label,
         "model_score": model_score,
+        "style_score": style_score,
     })
 
 

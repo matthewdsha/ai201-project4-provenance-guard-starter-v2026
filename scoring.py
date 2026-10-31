@@ -52,11 +52,18 @@ def combine_signals(model_score: float, style_score: float) -> float:
     The weights in config.py are placeholders. Change them, or ignore them and
     write a different rule.
     """
-    # TODO: replace this
-    return (
+    combined = (
         config.WEIGHT_MODEL_SIGNAL * model_score
         + config.WEIGHT_STYLE_SIGNAL * style_score
     )
+
+    # A false accusation costs more than a missed detection, so one signal
+    # reading the text as human is enough to keep it out of "AI": the combined
+    # score can't reach the AI threshold unless both signals lean AI.
+    if min(model_score, style_score) < config.HUMAN_THRESHOLD:
+        combined = min(combined, config.AI_THRESHOLD - 0.01)
+
+    return round(min(max(combined, 0.0), 1.0), 4)
 
 
 def score_to_label(score: float) -> tuple[str, str]:
