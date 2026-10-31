@@ -92,7 +92,7 @@ The two blind spots are different (word choice vs shape), but they overlap on th
 
 **What the rule can't do:** It cannot rescue someone both signals get wrong. A plain human paragraph scored 0.66 and 0.97, so it combines to about 0.81, the same as clearly AI text. Averaging and capping don't help when both signals are wrong in the same direction. Only the thresholds can, and moving them also lets AI text through.
 
-**The numbers:** Weights 0.5 / 0.5 (`config.py`). Cap on the combined score: `AI_THRESHOLD - 0.01`, applied when `min(model, style) < HUMAN_THRESHOLD`. Thresholds are still the starter's 0.35 and 0.65 until Milestone 5.
+**The numbers:** Weights 0.5 / 0.5 (`config.py`). Cap on the combined score: `AI_THRESHOLD - 0.01`, applied when `min(model, style) < HUMAN_THRESHOLD`. Thresholds: `HUMAN_THRESHOLD` 0.35 and `AI_THRESHOLD` 0.75 (see Label Variants), so the cap is 0.74.
 
 **Where it lives:** `scoring.py::combine_signals`
 
@@ -114,16 +114,17 @@ The two blind spots are different (word choice vs shape), but they overlap on th
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.35 | We think this was probably written by a person. |
+| unsure | 0.35 – 0.75 | We can't tell whether this was written by a person or by an AI tool. That doesn't mean anything is wrong with it. Plenty of people's own work lands here, and you don't need to do anything. |
+| high-confidence AI | 0.75 – 1.00 | This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review. |
+
+The score is the combined score (higher means more likely AI). The ranges come from `scoring.label_ranges()` and the cutoffs are `HUMAN_THRESHOLD = 0.35` and `AI_THRESHOLD = 0.75` in `config.py`. I raised the AI cutoff from the starter's 0.65 because 0.65 would have labelled a plain human paragraph (combined 0.63) one notch from AI, and a false accusation costs more than a missed detection.
 
 **Why I worded the "unsure" one this way:**
-<!-- It's the hardest of the three. It has to admit uncertainty without
-     sounding like an accusation, because the person reading it may well have
-     written every word themselves. -->
 
+It is the label a real writer is most likely to get on their own work, so it opens with what we don't know ("We can't tell"), not with a suspicion. It then says plainly that nothing is wrong and nothing needs doing, so the writer isn't left wondering whether they've been accused. It doesn't mention AI as the likely cause or quote a number.
 
+The AI label is hedged on purpose, too: it says "may have been" and that the check "can be wrong, especially for plain, simple writing and for people writing in a second language", because those are the writers it is most likely to get wrong. It only promises what the service does: an appeal is recorded and the submission is marked for review. Nothing re-checks it automatically and no reviewer exists inside this service, so the label doesn't say a person will look.
 
 ---
 
@@ -142,57 +143,72 @@ The two blind spots are different (word choice vs shape), but they overlap on th
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "In today's rapidly evolving digital landscape, it is important to note that artificial intelligence plays a crucial role in shaping the future of technology. Furthermore, organizations must carefully consider several key factors to ensure successful implementation. Additionally, the integration of innovative solutions can significantly enhance overall efficiency and productivity.", "creator_id": "matt"}'
+  -d '{"text": "The meeting went fine. We talked about the budget and the schedule for next month. Most people agreed that we should wait before making a decision. I think that is probably the right call for now. Dana said she would send the notes by Friday. I will check with Sam about the room. We can meet again in two weeks if nothing changes.", "creator_id": "matt"}'
 ```
 
 ```json
 {
-  "confidence": 0.5,
-  "content_id": "3da4d7b9-ee2d-4332-b656-890b1e501894",
-  "guess": "unsure",
-  "label": "PLACEHOLDER",
-  "model_score": 0.7818
+  "confidence": 0.8132,
+  "content_id": "a8d83f8a-c0a9-4793-addc-69d263493fe6",
+  "guess": "ai",
+  "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.",
+  "model_score": 0.6595,
+  "style_score": 0.9668
 }
 ```
 
-*(Milestone 3: only signal one is wired in, so `confidence`, `guess` and `label` are placeholders and there is no `style_score` yet.)*
+*(The text is one of my test paragraphs, a plainly written human one. It is also the false-positive case: it comes back "ai", which is why the appeal below exists.)*
 
 **An appeal**
 
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id": "a8d83f8a-c0a9-4793-addc-69d263493fe6", "reasoning": "I wrote this myself. I keep my sentences short and simple on purpose."}'
 ```
 
 ```json
-
+{
+  "content_id": "a8d83f8a-c0a9-4793-addc-69d263493fe6",
+  "message": "We've recorded your appeal and marked this submission as under review.",
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=2"
 ```
 
 ```json
 {
-  "count": 1,
+  "count": 2,
   "entries": [
     {
-      "combined_score": null,
-      "content_id": "3da4d7b9-ee2d-4332-b656-890b1e501894",
+      "combined_score": 0.8132,
+      "content_id": "a8d83f8a-c0a9-4793-addc-69d263493fe6",
       "creator_id": "matt",
-      "guess": "unsure",
-      "label": "PLACEHOLDER",
-      "model_score": 0.7818,
+      "guess": "ai",
+      "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.",
+      "model_score": 0.6595,
       "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-10-31T02:14:09+00:00"
+      "style_score": 0.9668,
+      "timestamp": "2026-10-31T02:22:53+00:00"
+    },
+    {
+      "content_id": "a8d83f8a-c0a9-4793-addc-69d263493fe6",
+      "creator_id": "matt",
+      "event": "appeal",
+      "reasoning": "I wrote this myself. I keep my sentences short and simple on purpose.",
+      "status": "under_review",
+      "timestamp": "2026-10-31T02:22:53+00:00"
     }
   ]
 }
 ```
+
+The log is append-only: the original decision (`status: decided`) is untouched, and the appeal sits after it with `status: under_review`.
 
 ---
 

@@ -66,6 +66,26 @@ def combine_signals(model_score: float, style_score: float) -> float:
     return round(min(max(combined, 0.0), 1.0), 4)
 
 
+# What a reader actually sees. Written for someone who has never heard of a
+# threshold, and none of them quotes a number. The AI one is hedged on purpose:
+# the writers it is most likely to get wrong are plain and second-language
+# writers, and it must not read as a verdict. It also promises only what the
+# service does — an appeal is recorded and marked for review, nothing more.
+LABEL_HUMAN = "We think this was probably written by a person."
+LABEL_UNSURE = (
+    "We can't tell whether this was written by a person or by an AI tool. "
+    "That doesn't mean anything is wrong with it. Plenty of people's own work "
+    "lands here, and you don't need to do anything."
+)
+LABEL_AI = (
+    "This may have been written with an AI tool, but our check can be wrong, "
+    "especially for plain, simple writing and for people writing in a second "
+    "language. If you wrote this yourself, you can appeal using the content ID "
+    "in this response. Your appeal will be recorded and the submission marked "
+    "for review."
+)
+
+
 def score_to_label(score: float) -> tuple[str, str]:
     """
     Turn a score into a guess and the text a reader actually sees.
@@ -92,12 +112,11 @@ def score_to_label(score: float) -> tuple[str, str]:
     think if they got it on their own work. That question is the whole
     milestone.
     """
-    # TODO: replace this — thresholds are in config.py
     if score >= config.AI_THRESHOLD:
-        return "ai", "PLACEHOLDER — write the high-confidence AI label."
+        return "ai", LABEL_AI
     if score <= config.HUMAN_THRESHOLD:
-        return "human", "PLACEHOLDER — write the high-confidence human label."
-    return "unsure", "PLACEHOLDER — write the unsure label."
+        return "human", LABEL_HUMAN
+    return "unsure", LABEL_UNSURE
 
 
 def label_ranges() -> list[tuple[str, str]]:

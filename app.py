@@ -229,11 +229,10 @@ def submit():
 
     content_id = str(uuid.uuid4())
 
-    # Placeholders until the label exists (Milestone 5). `confidence` is the
-    # combined score: higher means more likely AI.
-    guess = "unsure"
+    # `confidence` is the combined score: higher means more likely AI. It is
+    # not confidence in `guess`, so a "human" guess has a low value.
+    guess, label = scoring.score_to_label(combined_score)
     confidence = combined_score
-    label = "PLACEHOLDER"
 
     audit.log_decision(
         content_id=content_id,
@@ -276,14 +275,40 @@ def appeal():
     to the person on the other end. It's the only thing standing between a
     wrong accusation and nothing at all.
     """
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_json",
+                        "message": "Send a JSON object with content_id and reasoning."}), 400
 
-    # TODO: delete this and build the route.
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
+    if not isinstance(content_id, str) or not content_id.strip():
+        return jsonify({"error": "missing_content_id",
+                        "message": "content_id is required."}), 400
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({"error": "missing_reasoning",
+                        "message": "Tell us why you think this was a mistake."}), 400
+    if len(reasoning) > 2000:
+        return jsonify({"error": "reasoning_too_long",
+                        "message": "Please keep your reasoning under 2,000 characters."}), 400
+
+    # The decision entry is the one with a guess; appeal entries share the id.
+    decisions = [e for e in audit.entries_for(content_id) if e.get("event") != "appeal"]
+    if not decisions:
+        return jsonify({"error": "unknown_content_id",
+                        "message": "No submission has that content_id. Check it for typos."}), 404
+
+    audit.log_appeal(
+        content_id=content_id,
+        creator_id=decisions[0].get("creator_id", "unknown"),
+        reasoning=reasoning.strip(),
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id,
+        "status": "under_review",
+        "message": "We've recorded your appeal and marked this submission as under review.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────
