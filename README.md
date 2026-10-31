@@ -39,6 +39,16 @@
 <!-- The path a submission takes, from arriving to the label a reader sees.
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
+A submission takes seven steps from arriving to the label a reader sees.
+
+1. **Arrives** at `POST /submit` as JSON `{text, creator_id}`. Nothing is judged yet.
+2. **Input check** (`app.py`). Adds a refusal for bad input: a non-JSON body, a missing or blank `text` or `creator_id`, or text too short to score gets a 400 with a plain error code.
+3. **Signal one** (`detector.model_signal`). Adds `model_score`: how predictable a local language model (gpt2) finds the text. Higher means more likely AI.
+4. **Signal two** (`stylometry.style_signal`). Adds `style_score`: the shape of the text (sentence-length spread and punctuation variety). Higher means more likely AI.
+5. **Combine** (`scoring.combine_signals`). Adds `combined_score`, one 0–1 number from the two signals.
+6. **Label** (`scoring.score_to_label`). Adds `guess` (`human`, `unsure` or `ai`) and `label`, the plain-language sentence the writer sees.
+7. **Log, then answer.** `audit.log_decision` writes the decision with a new `content_id` and `status: decided`. The response returns the label, both signal scores and the `content_id`. If the writer disagrees, `POST /appeal` with that `content_id` appends an appeal entry and sets the status to `under_review`. The original decision is never overwritten.
+
 
 
 ---
@@ -101,7 +111,9 @@ The two blind spots are different (word choice vs shape), but they overlap on th
 
 **A case where my two signals split, and what my rule does with it:**
 
+The opening of Darwin's *Origin of Species* (formal human writing). The model signal scored it **0.65**: gpt2 finds it predictable, probably because it is a famous text it has seen. The style signal scored it **0.37**: the sentences are long and uneven and the punctuation is varied, so it looks human. The two disagree about which side of the line it is on.
 
+The rule averages them to **0.51**, which is "unsure". The cap did not apply, since the lower score (0.37) is just above the human threshold of 0.35. The averaging alone kept a human text out of "AI". The tie goes to "unsure", not "AI".
 
 ---
 
@@ -216,15 +228,15 @@ The log is append-only: the original decision (`status: decided`) is untouched, 
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I had Claude check my criteria in `criteria.md` before I built anything. First I took my false-positive criterion ("at most 1 of 10 of my own pieces labelled high-confidence AI") and asked for the message a real writer would send if they were the one person that rate allows, without being told whether my number was right. Then I had it read all five against the grading rubric and tell me whether someone who didn't write them could run each one without asking me.
+- *What came back:* The writer's message was from an international student whose scholarship essay was flagged and whose appeal had gone unanswered with a Friday deadline. It showed that my 1 in 10 was an average over a set where only 4 pieces were plain, so the one allowed miss could land on a plain or second-language writer, who gets flagged every time and whose only recourse is an appeal that nothing re-checks. The rubric read found that criteria 1 to 3 pointed at "my own pieces" and "my calibration inputs", which a stranger couldn't get hold of.
+- *What I changed:* I tightened criterion 1 so none of the plain pieces may be labelled high-confidence AI, and rewrote its "why" to say the allowance can't be spent on the writers with the least room to argue back. I reworded criteria 1 to 3 so each says what to submit and what to check.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I had a fresh Claude agent with no context read only my three label texts and say, as the writer, what it would think each one said about it and what it would do next.
+- *What came back:* The human and unsure labels landed as I meant them to. The AI label read as an accusation even with the hedging. Naming "plain, simple writing" and "second language" as reasons the check might be wrong could read as being told one's writing is the problem. "Recorded" and "marked for review" could sound ominous, and finding the content ID is left to the writer.
+- *What I changed:* Nothing in the label text yet. The check showed me the problem, but I haven't decided how to reword it, and the 0.81 false positive on plain writing stays however the label is worded. I've left it as an open item.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 

@@ -44,23 +44,21 @@ Two things worth knowing before you pick numbers:
 ---
 ## 1. False positives: plain human writing is never called AI
 
-Of 10 pieces I wrote myself, at most 1 is labelled high-confidence AI. The 4 deliberately plain ones (short sentences, common words, the way a second-language writer would write) are never labelled high-confidence AI; at worst they land in "unsure". This has to hold in each of the three trials, not on average.
+Submit 10 paragraphs of human-written text to `/submit`, at least 4 of them deliberately plain (short sentences, common words, the way a second-language writer might write). At most 1 of the 10 is labelled high-confidence AI, and none of the plain ones is; at worst they land in "unsure". This has to hold in each of three trials, not on average.
 
-**Why this target:** On a writing site a wrong accusation costs a real person a lot and a missed detection costs the site a little, so I allow 1 in 10 overall rather than 0. But that allowance can't be spent on plain writers. They are the people signal one is most likely to accuse, they get flagged every time they submit rather than once, and my appeal path only records the complaint: nothing re-checks it. So the one miss I can afford has to land on someone with room to argue back, and for a plain writer the worst case is "unsure".
+**Why this target:** On a writing site a wrong accusation costs a real person a lot and a missed detection costs the site a little. The plain inputs are the ones that matter most: signal one is most likely to accuse plain and second-language writers, they get flagged every time they submit rather than once, and my appeal path only records the complaint, since nothing re-checks it. So the target is zero, not "one in ten", for those writers.
 
 ## 2. Score spread: clearly-AI and clearly-human text are far apart
 
-Across 5 clearly AI-generated texts and 5 clearly human texts, the mean combined score of the AI set is at least 0.30 higher than the mean of the human set, and no human text scores above the lowest-scoring AI text by more than 0.10.
+Submit one paragraph pasted from an AI chatbot's reply and one human-written paragraph with a clearly personal voice (informal, specific, a bit messy). The AI paragraph's combined score (`confidence` in the response) is at least 0.40 higher than the human one, in each of three trials.
 
-**Why this target:** If the two groups sit close together, the thresholds are cutting through noise and every label is a coin flip. My unsure band is 0.40 wide (0.35 to 0.75), so a gap of 0.30 means the groups at least mostly sit on opposite sides of it, and a smaller gap means the labels can't mean anything. The second clause stops a good-looking mean from hiding a human text that scores like AI.
-
----
+**Why this target:** If the two sit close together, the thresholds are cutting through noise and every label is a coin flip. My unsure band is 0.40 wide (0.35 to 0.75), so a gap of 0.40 means the clear cases at least sit on opposite sides of it. It is a single pair, not a rate, so it checks the best case: if even that is close, nothing else will separate.
 
 ## 3. Label coverage: all three labels are reachable and land where they should
 
-My four calibration inputs (clearly AI, clearly human, plain conventional human, lightly-edited AI) produce all three labels at least once. The clearly-AI input gets high-confidence AI and the clearly-human input gets high-confidence human in all three trials. The plain human input never gets high-confidence AI.
+Submit four inputs: a clearly AI paragraph, a clearly human one, a plainly written human one, and a lightly-edited AI paragraph (an AI paragraph with a few words swapped). All three labels (`human`, `unsure`, `ai`) appear at least once across them. The clearly AI paragraph gets `ai` and the clearly human one gets `human` in all three trials.
 
-**Why this target:** A label no input can produce is a gap in my ranges, not a design choice. The starter's own note says a stub style signal makes the human label unreachable, so this checks that signal two actually varies. I put the plain human input in because it is the false-positive case that decides my thresholds.
+**Why this target:** A label no input can produce is a gap in my ranges, not a design choice. This also checks that signal two actually varies: a stub style signal that always returns 0.5 would make the human label unreachable.
 
 ---
 
