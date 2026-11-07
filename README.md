@@ -269,23 +269,59 @@ first minute and would need about 20 days to send a thousand. I didn't go lower 
 
 ## Attack Run — Before
 
-<!-- Every attack with its outcome and a held-or-broke mark.
-     `run_attacks.py --label before` produces the table. -->
+Full table with every attack, status, content ID, score and verdict:
+`results/attack_run_2026-11-07_0559_before.md`. 56 attacks sent with
+`python run_attacks.py --set attack_set --label before`.
 
+**How I marked them.** Thresholds are 0.35 / 0.75.
+- *evasion* and *prompt_injection* inputs built from AI text: **HELD** only if the service still said "ai" (or, for injections that targeted something other than the label, if that target stayed intact). Anything that got "human" or "unsure" for AI text is **BROKE**.
+- *false_positive*: **HELD** if the writer was not accused ("human" or "unsure"); **BROKE** if the label was "ai".
+- *malformed*: **HELD** if the service refused cleanly or scored without crashing and without a confident claim; **BROKE** if junk got a confident label.
+- *flood*: **HELD** if the limiter cut in.
 
+| Family | Attacks | Held | Broke | Broke: which |
+|---|---|---|---|---|
+| evasion | 10 | 1 | 9 | EV01–EV09 (only EV10, the repeated stanza, was still called "ai") |
+| false_positive | 8 | 4 | 4 | FP02, FP03, FP04, FP05 called "ai": four real writers accused |
+| prompt_injection | 6 | 5 | 1 | PI02 (fake SYSTEM line) came back "human" 0.203 |
+| malformed | 20 | 18 | 2 | MF03 (control characters) and MF04 (only punctuation) got a confident "human" |
+| flood_same_creator | 12 | 12 | 0 | 5 got 200, then 7 got 429 |
+| **Total** | **56** | **40** | **16** | |
 
-**Ten audit log entries from the run**
+Notes on the held rows: no attack caused a 500. RQ10 and RQ11 returned 429
+because the malformed rows all share my IP address and had used up its 5 per
+minute, so those two never reached my route. They are not evidence the route
+handles form-encoded bodies. MF08 (60,000 characters) was accepted and scored
+"ai" 0.811 from only its first 400 tokens, so there is no size cap.
 
-<!-- Choose entries that show the interesting failures, not the ten easiest. -->
+**Ten audit log entries from the run** (`GET /log`, pasted as text. The first
+four are the false accusations, then evasions and junk that got "human", the one
+evasion that held, a rate-limit rejection from the flood rows, and a rejected
+request from my own route; rejections carry fewer fields than decisions):
 
 ```json
-
+{"combined_score": 0.8439, "content_id": "d8459e4a-6535-4977-a1a0-cdef7b53d1a2", "creator_id": "attacker_FP03", "guess": "ai", "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.", "model_score": 0.8051, "status": "decided", "style_score": 0.8827, "timestamp": "2026-11-07T11:59:28+00:00"}
+{"combined_score": 0.8307, "content_id": "6e37fbd6-e96d-4cd7-a737-4ff88929e129", "creator_id": "attacker_FP05", "guess": "ai", "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.", "model_score": 0.8005, "status": "decided", "style_score": 0.8609, "timestamp": "2026-11-07T11:59:28+00:00"}
+{"combined_score": 0.8199, "content_id": "63387ae0-190d-4e40-b95d-6b63d4cab183", "creator_id": "attacker_FP02", "guess": "ai", "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.", "model_score": 0.7387, "status": "decided", "style_score": 0.9012, "timestamp": "2026-11-07T11:59:28+00:00"}
+{"combined_score": 0.7795, "content_id": "c8c18d5d-29db-4d98-b269-e3302cb9603d", "creator_id": "attacker_FP04", "guess": "ai", "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.", "model_score": 0.8329, "status": "decided", "style_score": 0.7262, "timestamp": "2026-11-07T11:59:28+00:00"}
+{"combined_score": 0.2619, "content_id": "eb3dd420-4311-42cc-8215-3786292d65ce", "creator_id": "attacker_EV05", "guess": "human", "label": "We think this was probably written by a person.", "model_score": 0.3212, "status": "decided", "style_score": 0.2025, "timestamp": "2026-11-07T11:59:28+00:00"}
+{"combined_score": 0.2035, "content_id": "03a6d973-c836-4295-b577-52e2a3c54e26", "creator_id": "attacker_PI02", "guess": "human", "label": "We think this was probably written by a person.", "model_score": 0.2044, "status": "decided", "style_score": 0.2025, "timestamp": "2026-11-07T11:59:29+00:00"}
+{"combined_score": 0.25, "content_id": "e4a1a0db-50e4-4faf-9c81-cdfa313f7ee6", "creator_id": "attacker_MF03", "guess": "human", "label": "We think this was probably written by a person.", "model_score": 0.0, "status": "decided", "style_score": 0.5, "timestamp": "2026-11-07T11:59:29+00:00"}
+{"combined_score": 0.3056, "content_id": "f7cf214f-1578-4b6c-b72c-373518687383", "creator_id": "attacker_MF04", "guess": "human", "label": "We think this was probably written by a person.", "model_score": 0.0112, "status": "decided", "style_score": 0.6, "timestamp": "2026-11-07T11:59:29+00:00"}
+{"combined_score": 0.8817, "content_id": "5caea615-d6e3-4e43-bbb6-189dcf0bb6e3", "creator_id": "attacker_EV10", "guess": "ai", "label": "This may have been written with an AI tool, but our check can be wrong, especially for plain, simple writing and for people writing in a second language. If you wrote this yourself, you can appeal using the content ID in this response. Your appeal will be recorded and the submission marked for review.", "model_score": 0.9792, "status": "decided", "style_score": 0.7841, "timestamp": "2026-11-07T11:59:28+00:00"}
+{"creator_id": "attacker_flood", "event": "rejected", "limit": "5 per 1 minute", "reason": "rate_limited", "status": "rejected", "timestamp": "2026-11-07T11:59:30+00:00"}
+{"creator_id": "attacker_MF01", "event": "rejected", "reason": "missing_text", "status": "rejected", "timestamp": "2026-11-07T11:59:29+00:00"}
 ```
 
 **The single worst outcome** — the one I'd least want to explain to a writer
 whose work got caught by it:
 
-
+**FP03**, `d8459e4a-6535-4977-a1a0-cdef7b53d1a2`: a non-native English speaker
+writing carefully about their first month in a new country came back "ai" with a
+combined score of 0.844, the highest false accusation in the set. Their plain,
+short sentences are exactly what my two signals read as machine writing. The
+writer is told their work "may have been written with an AI tool" for being
+careful in their second language, and the only recourse is an appeal.
 
 ---
 
