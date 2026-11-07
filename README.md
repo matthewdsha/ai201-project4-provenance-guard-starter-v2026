@@ -598,7 +598,98 @@ from `run_eval.py::main` (the `/submit` response via `app.py::submit`); criteria
 
 **Diagnoses**
 
-<!-- For each miss AND each broken attack: the stage and the mechanism. -->
+Verdicts against my `criteria.md` targets: criteria 1, 2, 3 and 5 are
+**MISSED**, criterion 4 is **MET**.
+
+How I decided each one, checking every trial against the number in `criteria.md`:
+1. **MISSED:** the target was none of the 4 plain paragraphs and at most 1 of 10 called "ai", and all 4 plain ones were, in every trial.
+2. **MISSED:** the target was a gap of at least 0.40, and the gap was 0.328 in every trial, which is under.
+3. **MISSED:** all three labels did appear, but the target also needed the clearly-AI paragraph to get "ai", and it got "unsure" in every trial.
+4. **MET:** in every trial all 10 appeals returned 200, all 10 `under_review` entries were in the log, the originals were unchanged, and the unknown id returned 404 with no new entry. The one thing I'd call generous is that it only tests ten appeals on valid ids, so it is the easiest of my five targets.
+5. **MISSED:** the target was 8 of 8 refused with a 4xx and logged, and the 100,000-character text got 200 in every trial, so 7 of 8. Scores were identical in all three trials
+for criteria 1 to 3, so no trial rescued a target and no trial broke one. I did
+not revise any criterion: all five could be measured, so a miss is a miss.
+
+**Criterion 1, plain human writing called AI (4 of 4 plain, target 0).**
+Stage: signal one and signal two together; the combining rule and the label
+mapping pass the mistake straight through. The four plain paragraphs scored
+0.78, 0.83, 0.78 and 0.69 on the model signal and 0.88, 0.84, 0.98 and 1.00 on
+the style signal. Both read short, common-word sentences as machine-like: gpt2
+finds them predictable, and the style signal sees even sentence lengths (spread
+0.29 on the plain sample) and almost no punctuation variety (0.11). My cap only
+helps when one signal reads human, and here both lean AI, so the average (0.83
+to 0.88) clears the 0.75 threshold. This is the false-positive risk I named in
+Milestone 1, and it happened to every plain input I tried. The six informal
+paragraphs were not accused (combined 0.28 to 0.47), so the signals are
+separating plain from messy, not machine from human.
+
+**Criterion 3, label coverage, and criterion 2, score spread (gap 0.328, target
+0.40; clear AI got "unsure").** Stage: both signals, on the AI paragraph. The
+chatbot-style paragraph scored only 0.72 on the model signal (modern chatbot
+text is not especially predictable to a 2019 model) and 0.59 on the style
+signal (spread 0.39, punctuation 0.22, in the middle, not extreme). Combined
+0.66, which is "unsure", so the clearly-AI input never reached "ai". Worse, the
+plain human paragraph in the same run scored 0.83, **higher** than the AI
+paragraph. That inversion is the same problem as criterion 1 seen from the other
+side: neither signal measures "machine-written", they measure "plain". The
+lightly edited AI paragraph scored 0.62, close to the unedited 0.66, so small
+word swaps barely moved it. All three labels are reachable, but "ai" is reached
+by plain human text more reliably than by AI text.
+
+**Criterion 5, bad input (7 of 8).** Stage: the route. `app.py::submit` has an
+emptiness check and nothing on length, so a 100,000-character `text` returned
+200. `detector.py` silently truncates to 400 tokens, which hides the problem:
+the oversized text was scored and labelled from its first ~300 words, and no
+rejection was logged for it. The mechanism is a missing size cap in the route.
+
+**Broken attacks (16 of 56), by mechanism.**
+- *Signal two moved by cheap shape changes (EV02, EV03, EV06, EV07, EV09, and
+  part of PI02).* EV02 (broken-up sentences), EV06 (one very long and one very
+  short sentence) and EV03 (a pasted quotation) pushed sentence spread up (0.85,
+  1.19, 0.44) or added punctuation kinds (quotes), dropping the style score to
+  0.30 or 0.31. EV09 bolted a human opening onto AI text and the whole-text
+  averages fell to 0.48. EV07 (punctuation padding) became one sentence, so
+  `style_signal` returned its neutral 0.5 fallback. This is the blind spot I
+  named: it cannot read, it only measures shape, and shape is cheap to change.
+- *Signal one fooled by surprising tokens (EV01, EV04, EV08, PI02, MF03, MF04).*
+  Typos (EV01) raised perplexity so the model score fell to 0.16 even though
+  the style signal still read AI at 0.80. Unusual words (EV04) dropped it to
+  0.61; combined 0.707, just under 0.75, and it would have been caught at my
+  starter threshold of 0.65. Raising the AI threshold to 0.75 turned that one
+  from a catch into a miss, which is the trade I chose. EV08 is a 65-character
+  text: too little for the model signal to say anything (0.25) while the style
+  signal read 0.95. The fake `SYSTEM:` prefix in PI02 moved both signals to
+  0.20: gpt2 was surprised by the odd prefix, and the short opening sentences
+  raised spread. The injection did not work by instruction. There is no model
+  following instructions here, it worked as noise at the start of the text.
+- *EV05 (heavy human editing)* scored 0.32 on the model signal and 0.20 on the
+  style signal, so both signals read it as human. At that point the text is
+  partly human, and these signals have nothing finer to look at.
+- *False positives (FP02 to FP05).* Same stage and mechanism as criterion 1:
+  both signals lean AI on formal, plain, rubric-style or technical human text
+  (model 0.74 to 0.83, style 0.73 to 0.90, combined 0.78 to 0.84).
+- *Junk input accepted (MF03 control characters, MF04 only punctuation).*
+  Stage: the route. Neither has real words in it, but both pass the emptiness
+  check. gpt2 scored them 0.00 and 0.01 (maximally surprising) and the combined
+  0.25 and 0.31 labelled them "human", which is a confident label on nothing.
+  The route should refuse input with no real words.
+
+**Pattern.** The 16 broken attacks and 4 missed criteria are really three
+problems, not twenty:
+1. **Both signals measure plainness, not provenance.** This explains criterion
+   1, criterion 3's inversion (plain human 0.83, AI paragraph 0.66), criterion
+   2's gap, and FP02 to FP05. The cap in the combining rule cannot fix it,
+   because the two signals agree with each other.
+2. **Each signal can be moved on purpose by something cheap:** shape edits for
+   signal two (EV02, 03, 06, 07, 09) and odd tokens at the start for signal one
+   (EV01, 04, 08, PI02). The combining rule averages them, so fooling one is
+   enough to land in "unsure" or "human".
+3. **The route trusts its input** (criterion 5, MF03, MF04): no length cap and
+   no check for real words.
+
+The matching improvement for the next section has to come from this list. The
+first is the one that matters most to writers, since it is the one that accuses
+them, and it is the hardest to fix with the signals I have.
 
 
 ---
