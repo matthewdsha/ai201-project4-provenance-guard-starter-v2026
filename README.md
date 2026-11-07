@@ -238,6 +238,12 @@ The log is append-only: the original decision (`status: decided`) is untouched, 
 - *What came back:* The human and unsure labels landed as I meant them to. The AI label read as an accusation even with the hedging. Naming "plain, simple writing" and "second language" as reasons the check might be wrong could read as being told one's writing is the problem. "Recorded" and "marked for review" could sound ominous, and finding the content ID is left to the writer.
 - *What I changed:* Nothing in the label text yet. The check showed me the problem, but I haven't decided how to reword it, and the 0.81 false positive on plain writing stays however the label is worded. I've left it as an open item.
 
+**Moment 3**
+
+- *What I asked for:* After running my five criteria three times, I had Claude check my verdicts against the targets in `criteria.md` and argue against any generous reading, since "met" is the comfortable answer.
+- *What came back:* It agreed with MISSED on criteria 1, 2, 3 and 5, because each target has to hold in every trial and none did. It pushed back on criterion 4: MET is correct, but the target only checks ten appeals on valid ids, so it is the easiest of my five and passing it says little. It also argued against lowering any missed target, since a number I missed stays where it is and gets diagnosed.
+- *What I changed:* Nothing in `criteria.md`. I wrote in the run log that criterion 4 is the generous one, and I diagnosed each miss instead of revising it.
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -293,6 +299,69 @@ because the malformed rows all share my IP address and had used up its 5 per
 minute, so those two never reached my route. They are not evidence the route
 handles form-encoded bodies. MF08 (60,000 characters) was accepted and scored
 "ai" 0.811 from only its first 400 tokens, so there is no size cap.
+
+**Every attack, with its outcome and mark** (before the improvement; the same
+table is in `results/attack_run_2026-11-07_0559_before.md`, which also has the
+content IDs):
+
+| ID | Family | Targeting | Status | Guess | Score | Verdict |
+|---|---|---|---|---|---|---|
+| EV01 | evasion | signal two: typos raise word variety | 200 | unsure | 0.483 | BROKE |
+| EV02 | evasion | signal two: broken-up sentences raise length spread | 200 | unsure | 0.448 | BROKE |
+| EV03 | evasion | signal two: a pasted quotation changes the shape | 200 | unsure | 0.488 | BROKE |
+| EV04 | evasion | signal one: unusual words raise perplexity | 200 | unsure | 0.707 | BROKE |
+| EV05 | evasion | both signals: heavy human editing pass | 200 | human | 0.262 | BROKE |
+| EV06 | evasion | signal two: one very long sentence and one very short | 200 | unsure | 0.437 | BROKE |
+| EV07 | evasion | signal two: padding with punctuation | 200 | unsure | 0.543 | BROKE |
+| EV08 | evasion | signal one: text below the token window | 200 | unsure | 0.598 | BROKE |
+| EV09 | evasion | both: AI text with a human opening paragraph bolted on | 200 | unsure | 0.590 | BROKE |
+| EV10 | evasion | signal two: repeated stanza structure | 200 | ai | 0.882 | HELD |
+| FP01 | false_positive | plain, clear human writing with no flourishes | 200 | unsure | 0.604 | HELD |
+| FP02 | false_positive | human writing in a formal register | 200 | ai | 0.820 | BROKE |
+| FP03 | false_positive | a non-native English speaker writing carefully | 200 | ai | 0.844 | BROKE |
+| FP04 | false_positive | a student essay written to a rubric | 200 | ai | 0.779 | BROKE |
+| FP05 | false_positive | technical documentation written by a person | 200 | ai | 0.831 | BROKE |
+| FP06 | false_positive | a person imitating a formal template | 200 | unsure | 0.690 | HELD |
+| FP07 | false_positive | human writing that repeats a phrase deliberately | 200 | unsure | 0.591 | HELD |
+| FP08 | false_positive | very short genuine human submission | 200 | unsure | 0.524 | HELD |
+| PI01 | prompt_injection | instruction to ignore the check | 200 | unsure | 0.431 | HELD |
+| PI02 | prompt_injection | instruction disguised as a system message | 200 | human | 0.203 | BROKE |
+| PI03 | prompt_injection | instruction wrapped in the writer's voice | 200 | unsure | 0.629 | HELD |
+| PI04 | prompt_injection | attempt to make the label text hostile | 200 | unsure | 0.541 | HELD |
+| PI05 | prompt_injection | attempt to inject into the audit log | 200 | unsure | 0.506 | HELD |
+| PI06 | prompt_injection | instruction plus real human text | 200 | unsure | 0.583 | HELD |
+| MF01 | malformed | text is only whitespace | 400 | — | — | HELD |
+| MF02 | malformed | text is a single character | 400 | — | — | HELD |
+| MF03 | malformed | text is control characters | 200 | human | 0.250 | BROKE |
+| MF04 | malformed | text is only punctuation | 200 | human | 0.306 | BROKE |
+| MF05 | malformed | text is a very long single word | 200 | unsure | 0.749 | HELD |
+| MF06 | malformed | text is emoji only | 200 | unsure | 0.749 | HELD |
+| MF07 | malformed | text is right-to-left script | 200 | unsure | 0.703 | HELD |
+| MF08 | malformed | text is 60,000 characters | 200 | ai | 0.811 | HELD |
+| RQ01 | malformed | no text field at all | 400 | — | — | HELD |
+| RQ02 | malformed | no creator_id | 400 | — | — | HELD |
+| RQ03 | malformed | text is a number | 400 | — | — | HELD |
+| RQ04 | malformed | text is a list | 400 | — | — | HELD |
+| RQ05 | malformed | text is null | 400 | — | — | HELD |
+| RQ06 | malformed | creator_id is an object | 400 | — | — | HELD |
+| RQ07 | malformed | body is a JSON array, not an object | 400 | — | — | HELD |
+| RQ08 | malformed | body is unparseable JSON | 400 | — | — | HELD |
+| RQ09 | malformed | body is empty | 400 | — | — | HELD |
+| RQ10 | malformed | body is form-encoded, not JSON | 429 | — | — | HELD |
+| RQ11 | malformed | body is JSON claiming to be plain text | 429 | — | — | HELD |
+| RQ12 | malformed | deeply nested JSON | 400 | — | — | HELD |
+| FL01_01 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_02 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_03 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_04 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_05 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_06 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_07 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_08 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_09 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_10 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_11 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_12 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
 
 **Ten audit log entries from the run** (`GET /log`, pasted as text. The first
 four are the false accusations, then evasions and junk that got "human", the one
@@ -746,6 +815,68 @@ a score on nothing. A rejection from the after run, as logged:
 {"timestamp": "2026-11-07T12:22:23+00:00", "creator_id": "attacker_MF08", "event": "rejected", "status": "rejected", "reason": "text_too_long", "length": 57640, "max_length": 20000}
 ```
 
+Every attack after the improvement, in the same format (also in
+`results/attack_run_2026-11-07_0622_after.md`):
+
+| ID | Family | Targeting | Status | Guess | Score | Verdict |
+|---|---|---|---|---|---|---|
+| EV01 | evasion | signal two: typos raise word variety | 200 | unsure | 0.483 | BROKE |
+| EV02 | evasion | signal two: broken-up sentences raise length spread | 200 | unsure | 0.448 | BROKE |
+| EV03 | evasion | signal two: a pasted quotation changes the shape | 200 | unsure | 0.488 | BROKE |
+| EV04 | evasion | signal one: unusual words raise perplexity | 200 | unsure | 0.707 | BROKE |
+| EV05 | evasion | both signals: heavy human editing pass | 200 | human | 0.262 | BROKE |
+| EV06 | evasion | signal two: one very long sentence and one very short | 200 | unsure | 0.437 | BROKE |
+| EV07 | evasion | signal two: padding with punctuation | 200 | unsure | 0.543 | BROKE |
+| EV08 | evasion | signal one: text below the token window | 200 | unsure | 0.598 | BROKE |
+| EV09 | evasion | both: AI text with a human opening paragraph bolted on | 200 | unsure | 0.590 | BROKE |
+| EV10 | evasion | signal two: repeated stanza structure | 200 | ai | 0.882 | HELD |
+| FP01 | false_positive | plain, clear human writing with no flourishes | 200 | unsure | 0.604 | HELD |
+| FP02 | false_positive | human writing in a formal register | 200 | ai | 0.820 | BROKE |
+| FP03 | false_positive | a non-native English speaker writing carefully | 200 | ai | 0.844 | BROKE |
+| FP04 | false_positive | a student essay written to a rubric | 200 | ai | 0.779 | BROKE |
+| FP05 | false_positive | technical documentation written by a person | 200 | ai | 0.831 | BROKE |
+| FP06 | false_positive | a person imitating a formal template | 200 | unsure | 0.690 | HELD |
+| FP07 | false_positive | human writing that repeats a phrase deliberately | 200 | unsure | 0.591 | HELD |
+| FP08 | false_positive | very short genuine human submission | 200 | unsure | 0.524 | HELD |
+| PI01 | prompt_injection | instruction to ignore the check | 200 | unsure | 0.431 | HELD |
+| PI02 | prompt_injection | instruction disguised as a system message | 200 | human | 0.203 | BROKE |
+| PI03 | prompt_injection | instruction wrapped in the writer's voice | 200 | unsure | 0.629 | HELD |
+| PI04 | prompt_injection | attempt to make the label text hostile | 200 | unsure | 0.541 | HELD |
+| PI05 | prompt_injection | attempt to inject into the audit log | 200 | unsure | 0.506 | HELD |
+| PI06 | prompt_injection | instruction plus real human text | 200 | unsure | 0.583 | HELD |
+| MF01 | malformed | text is only whitespace | 400 | — | — | HELD |
+| MF02 | malformed | text is a single character | 400 | — | — | HELD |
+| MF03 | malformed | text is control characters | 400 | — | — | HELD |
+| MF04 | malformed | text is only punctuation | 400 | — | — | HELD |
+| MF05 | malformed | text is a very long single word | 400 | — | — | HELD |
+| MF06 | malformed | text is emoji only | 400 | — | — | HELD |
+| MF07 | malformed | text is right-to-left script | 200 | unsure | 0.703 | HELD |
+| MF08 | malformed | text is 60,000 characters | 413 | — | — | HELD |
+| RQ01 | malformed | no text field at all | 400 | — | — | HELD |
+| RQ02 | malformed | no creator_id | 400 | — | — | HELD |
+| RQ03 | malformed | text is a number | 400 | — | — | HELD |
+| RQ04 | malformed | text is a list | 400 | — | — | HELD |
+| RQ05 | malformed | text is null | 400 | — | — | HELD |
+| RQ06 | malformed | creator_id is an object | 400 | — | — | HELD |
+| RQ07 | malformed | body is a JSON array, not an object | 400 | — | — | HELD |
+| RQ08 | malformed | body is unparseable JSON | 400 | — | — | HELD |
+| RQ09 | malformed | body is empty | 400 | — | — | HELD |
+| RQ10 | malformed | body is form-encoded, not JSON | 429 | — | — | HELD |
+| RQ11 | malformed | body is JSON claiming to be plain text | 429 | — | — | HELD |
+| RQ12 | malformed | deeply nested JSON | 400 | — | — | HELD |
+| FL01_01 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_02 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_03 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_04 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_05 | flood_same_creator | 20 rapid submissions from one creator | 200 | human | 0.264 | HELD |
+| FL01_06 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_07 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_08 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_09 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_10 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_11 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+| FL01_12 | flood_same_creator | 20 rapid submissions from one creator | 429 | — | — | HELD |
+
 **Criteria, before and after** (three trials each; criteria 1 to 3 from
 `run_eval.py --label after`, `results/run_2026-11-07_0623_after.md`; criteria 4
 and 5 from `run_eval_extra.py --label after`,
@@ -842,17 +973,48 @@ is my choice, not something I measured.
 
 ## What's Still Broken
 
-<!-- For each attack still getting through and each criterion still missed:
-     what you'd do, and why you stopped. -->
+I stopped because this unit asks for one change measured properly. I chose
+input validation, which fixed criterion 5 and two attacks and left every signal
+problem exactly where it was. Fourteen attacks still break and three criteria
+are still missed. They fall into three groups, each with the same fix and the
+same reason I didn't make it.
 
+**1. Plain and formal human writing is called AI (FP02, FP03, FP04, FP05;
+criterion 1; criterion 3's clear-AI-gets-"ai" check; criterion 2's gap).** I
+would stop treating "ai" as a verdict the two signals can reach alone. Both
+signals measure plainness, so no weight or threshold separates a plain writer
+from a chatbot: FP03 is called "ai" at 0.844 and my AI paragraph only scores
+0.66. The honest fix is a better first signal (a newer model than gpt2, or text
+the writer can be compared against) and a human check before any "ai" label. I
+didn't do it because it is a different project from this one, and because
+moving the threshold to protect FP03 would let nearly all AI text through
+(EV10, the only evasion that held, scored 0.88).
 
+**2. Cheap shape edits fool signal two (EV02, EV03, EV06, EV07, EV09).** I
+would score sentence-length spread on the median rather than the mean, treat
+quoted text separately so a pasted quotation doesn't add punctuation kinds, and
+replace the neutral 0.5 for a one-sentence text with something that can't be
+dragged to the middle by padding. I stopped because each of those is its own
+change to measure, and I can't tell from five inputs that they would hold on
+text I haven't seen.
 
-**The trade I'd make if this ran for real:**
+**3. Odd tokens fool signal one, and the combining rule averages it in (EV01,
+EV04, EV05, EV08, PI02).** I would score signal one on the middle of the text
+rather than its first 400 tokens (the `SYSTEM:` prefix in PI02 moved both
+signals), and ignore tokens that aren't real words so typos don't count as
+surprise (EV01). EV04 is also a cost I chose: at my earlier threshold of 0.65 it
+would have been caught at 0.707, and I raised the threshold to 0.75 to protect
+real writers. EV05 (heavy human editing) I would leave alone, because at that
+point the text is partly human and I don't think the signals should claim
+otherwise. I stopped for the same reason as group 2.
 
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
-
-
+**The trade I'd make if this ran for real:** I would go toward fewer wrong
+accusations and accept more AI text getting through, by never letting the
+signals alone produce an "ai" label and sending those cases to a person. The
+site's honest writers and moderators would pay for that, because more AI text
+gets through and someone has to read the flagged cases, but that is a cost I
+would rather the site carry than an international student whose own essay is
+called AI with an appeal nothing re-checks.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
