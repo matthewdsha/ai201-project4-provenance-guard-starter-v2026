@@ -696,22 +696,147 @@ them, and it is the hardest to fix with the signals I have.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** one change, input validation in the route, before either
+signal sees the text (`app.py::submit`, limits in `config.py`):
+- `MAX_TEXT_CHARS = 20000`: longer text is refused with a 413 `text_too_long`.
+- `MIN_REAL_WORDS = 5`: text with fewer than five real words (a word with at
+  least two letters) is refused with a 400 `not_enough_words`.
+Both refusals are written to the audit log as rejections. The signals, the
+weights and the thresholds are unchanged.
 
-**Which diagnosis pointed at it:**
+**Which diagnosis pointed at it:** the third problem in my diagnosis, "the route
+trusts its input". Criterion 5 failed because the route had no size cap
+(100,000 characters returned 200), and MF03 and MF04 got a confident "human"
+label on text with no real words in it. I chose this over the other two changes
+because it is the only one whose effect I can attribute cleanly. Reweighting or
+moving the threshold would change the false-positive numbers and the evasion
+numbers at once, and I would not be able to say which change did what.
 
 ### Attack Run — After
 
-<!-- Same format. `run_attacks.py --label after` -->
+`python run_attacks.py --set attack_set --label after`
+(`results/attack_run_2026-11-07_0622_after.md`), marked with the same rules as
+before.
 
+| Family | Before (held / broke) | After (held / broke) |
+|---|---|---|
+| evasion | 1 / 9 | 1 / 9 |
+| false_positive | 4 / 4 | 4 / 4 |
+| prompt_injection | 5 / 1 | 5 / 1 |
+| malformed | 18 / 2 | 20 / 0 |
+| flood_same_creator | 12 / 0 | 12 / 0 |
+| **Total** | **40 / 16** | **42 / 14** |
 
+Exactly five attack rows changed and nothing else moved:
 
-**Did it help, and how do I know:**
+| ID | Before | After |
+|---|---|---|
+| MF03 control characters | 200, "human" 0.25 (broke) | 400 `not_enough_words` (held) |
+| MF04 only punctuation | 200, "human" 0.31 (broke) | 400 `not_enough_words` (held) |
+| MF05 4,000-character single word | 200, "unsure" 0.75 | 400 `not_enough_words` |
+| MF06 emoji only | 200, "unsure" 0.75 | 400 `not_enough_words` |
+| MF08 60,000 characters | 200, "ai" 0.81 | 413 `text_too_long` |
 
-<!-- Widening the unsure band usually fixes one problem and creates another.
-     Reporting that trade honestly is worth full credit. -->
+Two of those were broken and are now held. MF05, MF06 and MF08 were already
+held (no crash, no confident wrong claim), but a refusal is a better answer than
+a score on nothing. A rejection from the after run, as logged:
 
+```json
+{"timestamp": "2026-11-07T12:22:23+00:00", "creator_id": "attacker_MF03", "event": "rejected", "status": "rejected", "reason": "not_enough_words", "real_words": 2, "min_words": 5}
+{"timestamp": "2026-11-07T12:22:23+00:00", "creator_id": "attacker_MF08", "event": "rejected", "status": "rejected", "reason": "text_too_long", "length": 57640, "max_length": 20000}
+```
 
+**Criteria, before and after** (three trials each; criteria 1 to 3 from
+`run_eval.py --label after`, `results/run_2026-11-07_0623_after.md`; criteria 4
+and 5 from `run_eval_extra.py --label after`,
+`results/run_extra_2026-11-07_0629_after.md`):
+
+| Criterion | Target | Before (Run 1 / 2 / 3) | After (Run 1 / 2 / 3) | Verdict before | Verdict after |
+|---|---|---|---|---|---|
+| 1. Plain human writing never called AI | ≤ 1 of 10, none of the 4 plain | 4/10 · 4/10 · 4/10 | 4/10 · 4/10 · 4/10 | MISSED | MISSED |
+| 2. Score spread | gap ≥ 0.40 | 0.328 · 0.328 · 0.328 | 0.328 · 0.328 · 0.328 | MISSED | MISSED |
+| 3. Label coverage | 3 labels, clear AI gets ai | clear AI got unsure, all trials | same | MISSED | MISSED |
+| 4. Appeal always changes status | 10/10, 404 on unknown id | 10/10 · 10/10 · 10/10 | 10/10 · 10/10 · 10/10 | MET | MET |
+| 5. Bad input never crashes | 8 of 8 4xx, JSON error, logged | 7/8 · 7/8 · 7/8 | 8/8 · 8/8 · 8/8 | MISSED | MET |
+
+Real output, criterion 5, trial 1 of the after run
+(`run_eval_extra.py::criterion_5`):
+
+```json
+{
+  "criterion_5_trial_1": {
+    "cases": [
+      {
+        "case": "missing text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "empty text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "whitespace-only text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "non-string text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "missing creator_id",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "body is a JSON list",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "invalid JSON",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "100,000-character text",
+        "status": 413,
+        "json_error": true,
+        "pass": true
+      }
+    ],
+    "new_rejection_entries": 8,
+    "ping_after": 200
+  }
+}
+```
+
+**Did it help, and how do I know:** it fixed what it was aimed at and nothing
+else. Criterion 5 went from 7/8 to 8/8 in all three trials, the 100,000-character
+text now gets a 413 and a rejection entry (8 new entries, up from 7), and two
+broken attacks (MF03, MF04) are now held. I know the change did only that because
+the other 51 attack rows and every score in criteria 1 to 3 are identical
+before and after, to four decimal places. That is also the limit of it: the 14
+attacks that still broke, and criteria 1, 2 and 3, are the signal problems, and
+input validation cannot touch them. The false accusations of plain writers, the
+worst outcome in the set (FP03, called "ai" at 0.844), are exactly as they were.
+
+The cost of the change is on the other side: a genuine very short submission is
+now refused. FP08 ("Went for a run. Legs hurt. Worth it.", 7 words) still gets
+through, but a four-word piece would not, and a writer submitting a haiku-length
+caption gets a 400 instead of a label. I think that is the right trade, since a
+label on four words means nothing, but it is a trade, and the five-word minimum
+is my choice, not something I measured.
 
 ---
 

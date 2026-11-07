@@ -106,6 +106,16 @@ RATE_LIMIT_PER_DAY = 50
 RATE_LIMIT_STORAGE = "memory://"
 
 
+# ─── Input validation (unit 8 improvement) ───────────────────────────────────
+# Checked in the route BEFORE either signal sees the text.
+# The detector only reads ~300 words anyway, so a longer text is never scored
+# in full; 20,000 characters is about 3,500 words, well past any real piece.
+MAX_TEXT_CHARS = 20000
+# A "real word" has at least two letters. Below five, there's nothing for a
+# language model or a sentence-shape measure to say anything about.
+MIN_REAL_WORDS = 5
+
+
 # ─── Paths ───────────────────────────────────────────────────────────────────
 
 LOG_DIR = ROOT / "logs"

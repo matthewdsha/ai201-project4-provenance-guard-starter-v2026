@@ -24,6 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import re
 import uuid
 
 from flask import Flask, jsonify, request
@@ -220,6 +221,18 @@ def submit():
         audit.log_rejection(creator_id="unknown", reason="missing_creator_id")
         return jsonify({"error": "missing_creator_id",
                         "message": "creator_id is required and must be a non-empty string."}), 400
+
+    if len(text) > config.MAX_TEXT_CHARS:
+        audit.log_rejection(creator_id=creator_id, reason="text_too_long",
+                            length=len(text), max_length=config.MAX_TEXT_CHARS)
+        return jsonify({"error": "text_too_long",
+                        "message": f"text must be at most {config.MAX_TEXT_CHARS:,} characters."}), 413
+    real_words = [w for w in re.findall(r"\w+", text) if sum(ch.isalpha() for ch in w) >= 2]
+    if len(real_words) < config.MIN_REAL_WORDS:
+        audit.log_rejection(creator_id=creator_id, reason="not_enough_words",
+                            real_words=len(real_words), min_words=config.MIN_REAL_WORDS)
+        return jsonify({"error": "not_enough_words",
+                        "message": f"text needs at least {config.MIN_REAL_WORDS} real words to be checked."}), 400
 
     try:
         model_score = detector.model_signal(text)
