@@ -244,25 +244,26 @@ The log is append-only: the original decision (`status: decided`) is untouched, 
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 5 per minute, 50 per day
 
 **Why those numbers and not others:**
-<!-- Think about two people: a real writer submitting their own work a few
-     times an hour, and a script sending a thousand variations to map your
-     thresholds. Your numbers have to be liveable for the first and hostile to
-     the second. -->
+A real writer submits a few pieces an hour, so 5 a minute leaves room for a
+burst of retries and 50 a day is far more than one person writes. A script
+mapping my thresholds with a thousand variations is stopped after 5 in the
+first minute and would need about 20 days to send a thousand. I didn't go lower because each 429 punishes a legitimate writer who resubmits after an edit.
 
-**What a caller counts as:** <!-- per address, or per creator_id? They fail
-differently — one script can look like a thousand callers, and one household
-can look like one. -->
+**What a caller counts as:** the `creator_id` in the request body, falling back to the caller's IP address when it's missing or invalid. Per-creator limits don't penalise a shared household address. The weakness is that a script can rotate `creator_id` values to get a fresh quota each time, so this limiter slows a single identity and doesn't stop a determined attacker.
 
 **The run of status codes when I pushed past it:**
 
-<!-- python run_attacks.py --flood 15 -->
+`python run_attacks.py --flood 15` (full report: `results/flood_2026-11-07_0530.md`)
 
 ```
-
+200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
 ```
+
+10 of 15 were rate limited, and each rejection appears in `GET /log` with
+`reason: rate_limited`.
 
 ---
 
