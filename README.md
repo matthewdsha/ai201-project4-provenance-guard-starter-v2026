@@ -327,39 +327,278 @@ careful in their second language, and the only recourse is an appeal.
 
 ## Run Log and Verdicts
 
-<!-- Your five criteria across three trials. `run_eval.py --label before`. -->
+`python run_eval.py --label before` (criteria 1 to 3, `results/run_2026-11-07_0604_before.md`)
+and `python run_eval_extra.py --label before` (criteria 4 and 5,
+`results/run_extra_2026-11-07_0610_before.md`). Three trials each, nothing
+changed in between. Criteria 4 and 5 need an appeal after a submit and a JSON
+list / invalid JSON body, which `run_eval.py` can't send, so I extended the
+harness with `run_eval_extra.py` and wrote the scenarios for 1 to 3 in `scenarios.py`.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
+| 1. Plain human writing never called AI | ≤ 1 of 10 labelled ai, none of the 4 plain | 4/10 (all 4 plain) | 4/10 (all 4 plain) | 4/10 (all 4 plain) | MISSED |
+| 2. Score spread | AI paragraph ≥ 0.40 above human | gap 0.328 | gap 0.328 | gap 0.328 | MISSED |
+| 3. Label coverage | 3 of 3 labels; clear AI gets ai, clear human gets human, all trials | 3 labels, but clear AI got unsure | same | same | MISSED |
+| 4. Appeal always changes status | 10/10 appeals 200 and logged, original unchanged, unknown id 404 | 10/10 | 10/10 | 10/10 | MET |
+| 5. Bad input never crashes | 8 of 8 get a 4xx with a JSON error, each logged, /ping answers | 7/8 | 7/8 | 7/8 | MISSED |
 
-**Real output from one trial**, pasted as text, naming the file and function
-that produced it:
+Scores were identical in all three trials for criteria 1 to 3. The model signal
+did not vary between runs on this machine. The 4 flagged inputs in criterion 1
+are texts 1 to 4, the plain ones, at combined scores 0.827, 0.834, 0.880 and
+0.847. Every plain paragraph was accused and none of the six informal ones was.
+For criterion 5, the 100,000-character `text` came back 200 instead of a 4xx, so
+no rejection entry was written for it (7 new rejection entries, not 8).
 
+**Real output from one trial** (trial 1), pasted as text. Criteria 1 to 3 came
+from `run_eval.py::main` (the `/submit` response via `app.py::submit`); criteria
+4 and 5 from `run_eval_extra.py::criterion_4` and `::criterion_5`.
+
+*Criterion 1: false positives (texts 1 to 4 are the plain ones)*
 ```json
+[
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.8266,
+    "model_score": 0.778,
+    "style_score": 0.8752,
+    "sent": "I get up at six every day. I make tea and I sit by the window. My stre"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.8335,
+    "model_score": 0.8294,
+    "style_score": 0.8375,
+    "sent": "Last year I started a new job in a new city. At first I was afraid. I "
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.8795,
+    "model_score": 0.7768,
+    "style_score": 0.9821,
+    "sent": "My sister has a small shop that sells fruit. She opens it at eight and"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.8466,
+    "model_score": 0.6932,
+    "style_score": 1.0,
+    "sent": "The park near my school has a big lake. In summer many people come the"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.318,
+    "model_score": 0.3349,
+    "style_score": 0.3012,
+    "sent": "Honestly the worst part of moving flat wasn't the boxes, it was findin"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.4718,
+    "model_score": 0.5219,
+    "style_score": 0.4216,
+    "sent": "I've been learning to bake bread for about a year now and I still can'"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.2759,
+    "model_score": 0.2506,
+    "style_score": 0.3012,
+    "sent": "We drove up to Whitby in my dad's ancient Volvo, which smells permanen"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.2888,
+    "model_score": 0.2763,
+    "style_score": 0.3012,
+    "sent": "Not gonna lie, I almost quit the choir twice this term. Rehearsals run"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.3683,
+    "model_score": 0.4353,
+    "style_score": 0.3012,
+    "sent": "My grandfather kept bees behind the garage and never wore a veil, whic"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.3685,
+    "model_score": 0.5345,
+    "style_score": 0.2025,
+    "sent": "Tuesday I missed the train because I went back for my umbrella, and it"
+  }
+]
+```
 
+*Criterion 2: score spread (AI paragraph, then human paragraph)*
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.6597,
+    "model_score": 0.7246,
+    "style_score": 0.5947,
+    "sent": "Effective communication is a cornerstone of successful teamwork in any"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.3314,
+    "model_score": 0.3101,
+    "style_score": 0.3527,
+    "sent": "I'll be honest, the team meeting yesterday was a mess. Priya turned up"
+  }
+]
+```
+
+*Criterion 3: label coverage (clear AI, clear human, plain human, lightly edited AI)*
+```json
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.6597,
+    "model_score": 0.7246,
+    "style_score": 0.5947,
+    "sent": "Effective communication is a cornerstone of successful teamwork in any"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.3314,
+    "model_score": 0.3101,
+    "style_score": 0.3527,
+    "sent": "I'll be honest, the team meeting yesterday was a mess. Priya turned up"
+  },
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.8335,
+    "model_score": 0.8294,
+    "style_score": 0.8375,
+    "sent": "Last year I started a new job in a new city. At first I was afraid. I "
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.6223,
+    "model_score": 0.6536,
+    "style_score": 0.591,
+    "sent": "Good communication is a cornerstone of successful teamwork in any mode"
+  }
+]
+```
+
+*Criterion 4: appeal path*
+```json
+{
+  "criterion_4_trial_1": {
+    "appeal_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "checks": {
+      "appeal_entries_found": "10/10",
+      "original_decisions_unchanged": true
+    },
+    "first_appeal_response": {
+      "content_id": "aae5cedd-224a-4856-87bb-628ca14ab430",
+      "message": "We've recorded your appeal and marked this submission as under review.",
+      "status": "under_review"
+    },
+    "unknown_id": {
+      "status": 404,
+      "body": {
+        "error": "unknown_content_id",
+        "message": "No submission has that content_id. Check it for typos."
+      },
+      "new_under_review_entries": 0
+    }
+  }
+}
+```
+
+*Criterion 5: bad input*
+```json
+{
+  "criterion_5_trial_1": {
+    "cases": [
+      {
+        "case": "missing text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "empty text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "whitespace-only text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "non-string text",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "missing creator_id",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "body is a JSON list",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "invalid JSON",
+        "status": 400,
+        "json_error": true,
+        "pass": true
+      },
+      {
+        "case": "100,000-character text",
+        "status": 200,
+        "json_error": false,
+        "pass": false
+      }
+    ],
+    "new_rejection_entries": 7,
+    "ping_after": 200
+  }
+}
 ```
 
 **Diagnoses**
 
-<!-- For each miss AND each broken attack: the stage and the mechanism.
-
-     Your service has five stages: the route, signal one, signal two, the
-     combining rule, and the label mapping.
-
-     Not a diagnosis:  "The evasion attacks got through."
-     A diagnosis:      "Four evasion inputs got through. All four had typos
-                        added to AI-generated text. My second signal measures
-                        word variety, and typos raise word variety — so it read
-                        them as more human. My combining rule weights that
-                        signal at 0.6, so it dragged the whole score down."
-
-     Look for a pattern. Five failures on one signal is one problem, not five. -->
-
+<!-- For each miss AND each broken attack: the stage and the mechanism. -->
 
 
 ---
