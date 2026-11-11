@@ -13,15 +13,42 @@ assumed — the starter ships one that already answers.
 This is the path I actually ran and tested. Everything else in this file is the
 course's background.
 
-**Start command** (from the repository root, with the virtual environment active):
+**Setup and start, in order** (macOS or Linux; on Windows use
+`.venv\Scripts\Activate.ps1` for step 2):
 
 ```bash
+# 1. get the code, and work from the repository root
+git clone https://github.com/matthewdsha/ai201-project4-provenance-guard-starter-v2026.git provenance-guard
+cd provenance-guard
+
+# 2. a virtual environment (Python 3.11, 3.12 or 3.13; not 3.14)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. the pinned dependencies (this pulls torch, so allow a few minutes)
+pip install -r requirements.txt
+
+# 4. once: download the gpt2 model, 525 MB, and score a sample with it
+python detector.py
+
+# 5. start the service
 python app.py
 ```
 
-It serves `http://127.0.0.1:5000`. Check it with
-`curl http://127.0.0.1:5000/health` (use `127.0.0.1`, not `localhost`, which on
-a Mac can resolve to another program on port 5000).
+Step 5 is the start command. It serves `http://127.0.0.1:5000`. In a second
+terminal, check it:
+
+```bash
+curl http://127.0.0.1:5000/health
+curl -X POST http://127.0.0.1:5000/submit \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I went to the market on Saturday and bought apples, bread and cheese. The vendor was friendly and we talked about the weather. Then I walked home slowly because the sun had come out.", "creator_id": "me"}'
+```
+
+Use `127.0.0.1`, not `localhost`, which on a Mac can resolve to another program
+on port 5000. `/health` should answer with `"ok": true`, and `/submit` should
+return a `guess`, a `label` and both scores. The request is also written to
+`logs/run.jsonl`.
 
 **What the environment needs**
 
@@ -31,12 +58,12 @@ a Mac can resolve to another program on port 5000).
 | Dependencies | `pip install -r requirements.txt`. Tested with Flask 3.1.3, Flask-Limiter 3.12, torch 2.15.0, transformers 4.57.6, requests 2.34.2 |
 | Model file | `gpt2`, 525 MB in `~/.cache/huggingface/hub/models--gpt2`, downloaded once by `python detector.py` |
 | Free disk | about 9 GB for the environment and model cache (`python test.py` checks this) |
-| Memory | about 440 MB once the model is loaded, about 720 MB after twenty requests |
+| Memory | about 440 to 820 MB once the model is loaded (two measured runs) |
 | Tested on | macOS 15.5, Apple M1, 8 GB RAM, CPU only |
 
 **What to expect.** The first `/submit` after a start takes about 7.5 seconds
-because it loads gpt2. After that a submission takes about 0.1 to 0.5 seconds,
-depending on its length.
+because it loads gpt2 (6 to 7.5 s in my runs). After that a submission takes
+about 0.05 to 0.5 seconds, depending on its length.
 
 **Where the record goes.** Every `/submit` and `/appeal` request, including
 rejected and rate-limited ones, appends one JSON line to `logs/run.jsonl`

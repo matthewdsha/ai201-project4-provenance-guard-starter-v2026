@@ -1068,12 +1068,15 @@ python app.py                       # serves http://127.0.0.1:5000
 
 The first `/submit` after a start takes about six to seven seconds because it
 loads gpt2. After that a submission takes tens to hundreds of milliseconds. I
-tested the start command from a fresh `git clone` in a separate folder: `/health`
-answered, a real submission returned a label, and an empty text was rejected,
-and each left a line in that clone's own `logs/run.jsonl`. One limit on that
-test: I reused my existing virtual environment instead of reinstalling the
-dependencies, because a second copy of torch would not fit in the disk space I
-had, so a from-nothing `pip install` is the one step I did not run.
+I tested the steps from a fresh `git clone` in a separate folder, following
+RUNNING.md as written: a new virtual environment, `pip install -r
+requirements.txt` (it installed the same versions listed in RUNNING.md, in about
+30 seconds), `python detector.py`, then `python app.py`. `/health` answered, a
+real submission returned a label, an empty text was rejected, and each left a
+line in that clone's own `logs/run.jsonl`. Two things made that test easier than
+a first-time install would be: pip had the packages cached, and the gpt2 model
+was already in my Hugging Face cache, so the 525 MB download did not happen. I
+did not time or test those two downloads.
 
 ## Instrumentation
 
