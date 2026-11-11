@@ -1016,6 +1016,44 @@ gets through and someone has to read the flagged cases, but that is a cost I
 would rather the site carry than an international student whose own essay is
 called AI with an appeal nothing re-checks.
 
+---
+
+<!-- ═══════════════════════ UNIT 9 — DEPLOY AND INSTRUMENT ═══════════════════════ -->
+
+## What This Extends
+
+This extends Provenance Guard, the Flask service from the last two units. It
+already takes text at `POST /submit`, scores it with gpt2 (`detector.model_signal`)
+and a stylometry signal (`stylometry.style_signal`), combines them in
+`scoring.combine_signals`, labels it, and writes a decision or a rejection to
+`logs/audit.jsonl`. It also rate-limits `/submit`, rejects bad input, and has
+an attack set and an eval harness. What is new this unit is the operational
+layer around it: a run path anyone can follow, a structured log that records how
+long each request took, and measured numbers for what a run costs.
+
+## The Shape
+
+I am doing **A, deploy and instrument**, on **Path B (local with logs)**. I'm
+adding three things. First, per-request timing in `app.py::submit`: how long the
+gpt2 signal took, how long the stylometry signal took, and the whole request,
+written as fields on every log line, including the lines for rejected requests.
+Second, a start command in RUNNING.md that I test from a clean checkout, with the
+Python version, the pinned dependencies and the size of the gpt2 download, plus a
+committed log from a real session. Third, a measurement script that sends
+a fixed set of submissions and reports time per run and memory, so that
+What It Costs rests on a number I measured.
+
+**Out of scope.** I am not changing the signals, the combining rule, the
+thresholds or the labels: the three groups in What's Still Broken stay broken,
+and this unit's criteria are about the operational layer, not detection quality.
+I am not hosting it anywhere, because gpt2 needs far more than the 512 MB the
+free tier gives and Path B is worth the same. I am not building a dashboard or
+adding a metrics service: the log file and one script are the instrumentation.
+
+**Size check.** Timing fields, the measurement script and the RUNNING.md test
+are each under thirty minutes, and none of them touches the scoring path, so I
+expect about ninety minutes in total.
+
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7
