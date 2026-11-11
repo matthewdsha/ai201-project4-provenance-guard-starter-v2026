@@ -48,6 +48,7 @@ _LOGGED_ROUTES = ("/submit", "/appeal")
 @app.before_request
 def _start_request_clock():
     g.started = time.perf_counter()
+    g.run_fields = {}  # filled in by the route: model_ms, style_ms, guess, combined_score
 
 
 @app.after_request
@@ -66,6 +67,7 @@ def _log_request(response):
             input_chars=len(text) if isinstance(text, str) else None,
             creator_id=payload.get("creator_id") if isinstance(payload.get("creator_id"), str) else None,
             total_ms=round((time.perf_counter() - g.started) * 1000, 1),
+            **g.run_fields,
         )
     return response
 
@@ -269,16 +271,23 @@ def submit():
         return jsonify({"error": "not_enough_words",
                         "message": f"text needs at least {config.MIN_REAL_WORDS} real words to be checked."}), 400
 
+    model_started = time.perf_counter()
     try:
         model_score = detector.model_signal(text)
     except ValueError as exc:  # too short to score
+        g.run_fields["model_ms"] = round((time.perf_counter() - model_started) * 1000, 1)
         audit.log_rejection(creator_id=creator_id, reason="text_too_short")
         return jsonify({"error": "text_too_short", "message": str(exc)}), 400
     except detector.DetectorUnavailable as exc:
+        g.run_fields["model_ms"] = round((time.perf_counter() - model_started) * 1000, 1)
         audit.log_rejection(creator_id=creator_id, reason="detector_unavailable")
         return jsonify({"error": "detector_unavailable", "message": str(exc)}), 503
 
+    g.run_fields["model_ms"] = round((time.perf_counter() - model_started) * 1000, 1)
+
+    style_started = time.perf_counter()
     style_score = stylometry.style_signal(text)
+    g.run_fields["style_ms"] = round((time.perf_counter() - style_started) * 1000, 1)
     combined_score = scoring.combine_signals(model_score, style_score)
 
     content_id = str(uuid.uuid4())
@@ -287,6 +296,7 @@ def submit():
     # not confidence in `guess`, so a "human" guess has a low value.
     guess, label = scoring.score_to_label(combined_score)
     confidence = combined_score
+    g.run_fields.update(guess=guess, combined_score=round(combined_score, 3))
 
     audit.log_decision(
         content_id=content_id,
