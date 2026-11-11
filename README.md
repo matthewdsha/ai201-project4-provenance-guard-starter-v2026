@@ -1054,6 +1054,80 @@ adding a metrics service: the log file and one script are the instrumentation.
 are each under thirty minutes, and none of them touches the scoring path, so I
 expect about ninety minutes in total.
 
+## Running It
+
+Path B, local with logs. The full instructions, with the environment table, are
+in [RUNNING.md](RUNNING.md). The short version:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt     # Python 3.11 to 3.13; I tested 3.13.7
+python detector.py                  # once: downloads gpt2, 525 MB
+python app.py                       # serves http://127.0.0.1:5000
+```
+
+The first `/submit` after a start takes about six to seven seconds because it
+loads gpt2. After that a submission takes tens to hundreds of milliseconds. I
+tested the start command from a fresh `git clone` in a separate folder: `/health`
+answered, a real submission returned a label, and an empty text was rejected,
+and each left a line in that clone's own `logs/run.jsonl`. One limit on that
+test: I reused my existing virtual environment instead of reinstalling the
+dependencies, because a second copy of torch would not fit in the disk space I
+had, so a from-nothing `pip install` is the one step I did not run.
+
+## Instrumentation
+
+Every `/submit` and `/appeal` request appends one JSON line to
+`logs/run.jsonl`, written by `app.py::_log_request` through `runlog.write`. I
+kept it separate from `logs/audit.jsonl`: the audit log records decisions and
+keeps its nine fields, and this log records how the service ran. Each line has:
+
+| Field | What it holds |
+|---|---|
+| `timestamp` | UTC, to the millisecond |
+| `request_id` | a new uuid per request |
+| `route`, `status_code` | what was called and the HTTP status |
+| `outcome` | `ok`, or the error code the route returned (`missing_text`, `rate_limited`, ...) |
+| `input_chars`, `creator_id` | what came in. I log the length, not the text, so the log never holds a writer's submission |
+| `guess`, `combined_score` | what came out (successful `/submit` only) |
+| `total_ms`, `model_ms`, `style_ms` | the whole request, the gpt2 stage, and the stylometry stage |
+
+Rejections go through the same hook, so a refused request leaves a line too. I
+produced the entries below in one deliberate session
+(`AI201_RUN_LOG=logs/session_2026-11-11.jsonl python app.py`, then ten
+submissions, five bad requests and two appeals), and they are the whole file,
+pasted as text. Lines 1 to 10 are successful submissions, 11 to 15 are rejected
+inputs, 16 is an appeal that worked, and 17 is an appeal for an id that does not
+exist. The failures are lines 11 to 15 and 17. Nothing errored on the server
+side, so there is no 5xx entry; the rate-limit 429s appear in the larger
+`logs/run.jsonl`, which came from the attack run.
+
+```json
+{"timestamp": "2026-11-11T23:49:56.603+00:00", "request_id": "f47c3f26-ef8d-4fa0-90a5-36d47e3eb37d", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 150, "creator_id": "session_01", "total_ms": 6006.7, "model_ms": 6000.4, "style_ms": 0.4, "guess": "unsure", "combined_score": 0.649}
+{"timestamp": "2026-11-11T23:49:56.672+00:00", "request_id": "76f55af3-07e5-49d4-abdb-a293df32fde6", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 175, "creator_id": "session_02", "total_ms": 62.4, "model_ms": 61.5, "style_ms": 0.1, "guess": "ai", "combined_score": 0.851}
+{"timestamp": "2026-11-11T23:49:56.746+00:00", "request_id": "81200624-8222-4800-aca7-976a25eab434", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 178, "creator_id": "session_03", "total_ms": 71.6, "model_ms": 71.0, "style_ms": 0.1, "guess": "unsure", "combined_score": 0.665}
+{"timestamp": "2026-11-11T23:49:56.814+00:00", "request_id": "6302f508-75b1-488d-ba34-26af96e53e71", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 217, "creator_id": "session_04", "total_ms": 67.1, "model_ms": 66.5, "style_ms": 0.1, "guess": "ai", "combined_score": 0.849}
+{"timestamp": "2026-11-11T23:49:56.878+00:00", "request_id": "e666f921-5b14-4b0e-9004-f34dc0f26f73", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 161, "creator_id": "session_05", "total_ms": 62.2, "model_ms": 61.5, "style_ms": 0.1, "guess": "unsure", "combined_score": 0.583}
+{"timestamp": "2026-11-11T23:49:56.929+00:00", "request_id": "098af8b0-c7ed-4c0d-a055-68292422fa9a", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 200, "creator_id": "session_06", "total_ms": 48.8, "model_ms": 48.0, "style_ms": 0.1, "guess": "unsure", "combined_score": 0.695}
+{"timestamp": "2026-11-11T23:49:56.991+00:00", "request_id": "60b09ac6-4fd3-4d93-a1bd-99df46ebfc59", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 149, "creator_id": "session_07", "total_ms": 60.5, "model_ms": 59.7, "style_ms": 0.1, "guess": "unsure", "combined_score": 0.697}
+{"timestamp": "2026-11-11T23:49:57.056+00:00", "request_id": "5ea707cd-f973-48d2-a773-751c0bf78fba", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 160, "creator_id": "session_08", "total_ms": 63.6, "model_ms": 62.9, "style_ms": 0.1, "guess": "unsure", "combined_score": 0.593}
+{"timestamp": "2026-11-11T23:49:57.127+00:00", "request_id": "7673c0d9-aedd-4d67-90d4-37c0d446faca", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 202, "creator_id": "session_09", "total_ms": 68.9, "model_ms": 68.0, "style_ms": 0.1, "guess": "ai", "combined_score": 0.953}
+{"timestamp": "2026-11-11T23:49:57.180+00:00", "request_id": "e7d7ffbf-1d84-4a2f-9649-674479ed6adb", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 140, "creator_id": "session_10", "total_ms": 51.4, "model_ms": 50.5, "style_ms": 0.1, "guess": "unsure", "combined_score": 0.427}
+{"timestamp": "2026-11-11T23:49:57.183+00:00", "request_id": "dcdb0fbe-40ab-4b78-8464-2597c780e920", "route": "/submit", "status_code": 400, "outcome": "invalid_json", "input_chars": null, "creator_id": null, "total_ms": 0.8}
+{"timestamp": "2026-11-11T23:49:57.185+00:00", "request_id": "13b59939-d9d2-448c-a3fa-6c795e7b6357", "route": "/submit", "status_code": 400, "outcome": "missing_text", "input_chars": 0, "creator_id": "session_bad", "total_ms": 0.4}
+{"timestamp": "2026-11-11T23:49:57.187+00:00", "request_id": "8f0a4186-1899-4d52-98ae-318e932afecd", "route": "/submit", "status_code": 400, "outcome": "missing_creator_id", "input_chars": 150, "creator_id": null, "total_ms": 0.4}
+{"timestamp": "2026-11-11T23:49:57.190+00:00", "request_id": "99cfa96a-26fc-4f95-acd3-c02f1e9f1c5b", "route": "/submit", "status_code": 400, "outcome": "not_enough_words", "input_chars": 19, "creator_id": "session_bad", "total_ms": 0.5}
+{"timestamp": "2026-11-11T23:49:57.192+00:00", "request_id": "68a10631-495f-4eae-be92-eac3ca941219", "route": "/submit", "status_code": 413, "outcome": "text_too_long", "input_chars": 30000, "creator_id": "session_bad", "total_ms": 0.6}
+{"timestamp": "2026-11-11T23:49:57.197+00:00", "request_id": "5796ab73-9d38-416d-a358-6b055cd5495a", "route": "/appeal", "status_code": 200, "outcome": "ok", "input_chars": null, "creator_id": null, "total_ms": 3.3}
+{"timestamp": "2026-11-11T23:49:57.201+00:00", "request_id": "414cac6c-34a2-46e7-b3a2-f1463d3c3ec9", "route": "/appeal", "status_code": 404, "outcome": "unknown_content_id", "input_chars": null, "creator_id": null, "total_ms": 1.5}
+```
+
+What the entries show: line 1 took 6,007 ms and is almost all `model_ms`, because
+it was the first request after a start and loaded the model. Lines 2 to 10 took
+49 to 72 ms each. `style_ms` is 0.1 to 0.4 ms on every line, so gpt2 is the whole
+cost of a run. Rejected requests took under a millisecond, because the route
+refuses them before it calls gpt2.
+
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7
