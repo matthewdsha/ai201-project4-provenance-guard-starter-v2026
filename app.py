@@ -25,14 +25,49 @@ Routes:
 """
 
 import re
+import time
 import uuid
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 
 import audit
 import config
+import runlog
 
 app = Flask(__name__)
+
+
+# ── Request log — UNIT 9 ──────────────────────────────────────────────────────
+# One line in logs/run.jsonl for every /submit and /appeal request, whatever the
+# outcome. The hooks see the final response, so a rejection or a 429 is logged
+# without each `return` in the routes having to remember to.
+
+_LOGGED_ROUTES = ("/submit", "/appeal")
+
+
+@app.before_request
+def _start_request_clock():
+    g.started = time.perf_counter()
+
+
+@app.after_request
+def _log_request(response):
+    if request.path in _LOGGED_ROUTES and hasattr(g, "started"):
+        payload = request.get_json(silent=True)
+        payload = payload if isinstance(payload, dict) else {}
+        text = payload.get("text")
+        body = response.get_json(silent=True)
+        body = body if isinstance(body, dict) else {}
+        runlog.write(
+            request_id=str(uuid.uuid4()),
+            route=request.path,
+            status_code=response.status_code,
+            outcome="ok" if response.status_code < 400 else body.get("error", "error"),
+            input_chars=len(text) if isinstance(text, str) else None,
+            creator_id=payload.get("creator_id") if isinstance(payload.get("creator_id"), str) else None,
+            total_ms=round((time.perf_counter() - g.started) * 1000, 1),
+        )
+    return response
 
 
 # ── Rate limiting — UNIT 8 ────────────────────────────────────────────────────
