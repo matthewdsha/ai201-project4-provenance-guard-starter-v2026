@@ -1128,6 +1128,53 @@ it was the first request after a start and loaded the model. Lines 2 to 10 took
 cost of a run. Rejected requests took under a millisecond, because the route
 refuses them before it calls gpt2.
 
+## What It Costs
+
+The real cost of a run here is seconds of compute and memory on my own machine.
+There is no API spend, because gpt2 runs locally, and no token count to read off
+a bill.
+
+**How I measured it.** `python measure.py` starts the service with the
+documented command (debug off, so there is one process), sends one cold
+request, then twenty warm requests, which is five each of four texts of about
+20, 60, 150 and 300 words, and times each with `time.perf_counter()` around the
+HTTP call on the same machine (an M1 MacBook, 8 GB, CPU only). It reads the
+service's memory with `ps` before the model loads, after the cold request, and
+after the warm ones. I ran it twice; the full tables are in
+`results/measure_2026-11-11_1742.md` and `results/measure_2026-11-11_1750.md`.
+
+| Measure | Run 1 | Run 2 |
+|---|---|---|
+| Cold request (loads gpt2) | 7,478 ms | 5,934 ms |
+| Warm mean (20 requests) | not recorded | **180 ms** |
+| Warm median | 325 ms | 170 ms |
+| Warm p95 | 651 ms | 327 ms |
+| Memory, loaded | 438 MB | 818 MB |
+
+Run 1 did not record a mean, so I added one to `measure.py` before run 2. The two
+runs disagree by about a factor of two on latency, and I did not run anything
+else to explain that, so I read the cost as a range: **about 0.2 to 0.3
+seconds per warm submission** (run 2's mean of 0.18 s up to run 1's median of
+0.33 s). Length matters more than that spread: in run 2 the mean was 64 ms for
+about 20 words and 356 ms for about 300.
+
+**Per run:** 0.18 s of compute in run 2, and 0.33 s as the upper end from run 1.
+A cold start adds another 6 to 7.5 s once per process start, and the process
+holds roughly 440 to 820 MB while it runs. Memory grew from 438 to 722 MB across
+run 1's warm requests but fell from 818 to 780 MB in run 2, so I have no
+evidence of a leak.
+
+**A hundred submissions a day:**
+
+- 100 × 0.18 s = **18 s** of compute a day on run 2's mean
+- 100 × 0.33 s = **33 s** a day at the slower end
+- plus one cold start, 6 to 7.5 s, each time the service is started
+
+That is under a minute of compute a day and no spend, so a hundred a day is far
+inside what one laptop can do. The cost that matters is not the compute but
+the 525 MB model and the roughly 800 MB of memory it needs to stay loaded,
+which is why this does not fit a 512 MB free host.
+
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7

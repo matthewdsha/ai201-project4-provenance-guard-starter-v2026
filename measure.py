@@ -139,6 +139,7 @@ def main() -> int:
         "|---|---|",
         f"| Cold request (first, loads gpt2) | {cold_ms:,.0f} ms |",
         f"| Warm requests sent | {len(warm)} |",
+        f"| Warm mean | {statistics.mean(warm):,.0f} ms |",
         f"| Warm median | {statistics.median(warm):,.0f} ms |",
         f"| Warm p95 | {p95(warm):,.0f} ms |",
         f"| Warm max | {max(warm):,.0f} ms |",
@@ -149,11 +150,11 @@ def main() -> int:
         "",
         "## Warm latency by text length",
         "",
-        "| Text | n | Median | p95 |",
-        "|---|---|---|---|",
+        "| Text | n | Mean | Median | p95 |",
+        "|---|---|---|---|---|",
     ]
     for name, values in by_length.items():
-        lines.append(f"| {name} | {len(values)} | {statistics.median(values):,.0f} ms | {p95(values):,.0f} ms |")
+        lines.append(f"| {name} | {len(values)} | {statistics.mean(values):,.0f} ms | {statistics.median(values):,.0f} ms | {p95(values):,.0f} ms |")
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     print(f"\nWritten to {out.relative_to(config.ROOT)}")
