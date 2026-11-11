@@ -123,5 +123,5 @@ AUDIT_LOG = LOG_DIR / "audit.jsonl"
 
 # One structured line per request, with durations. Separate from the audit log
 # on purpose: the audit log records decisions, this one records how the service ran.
-RUN_LOG = LOG_DIR / "run.jsonl"
+RUN_LOG = Path(os.getenv("AI201_RUN_LOG", LOG_DIR / "run.jsonl"))
 RESULTS_DIR = ROOT / "results"
