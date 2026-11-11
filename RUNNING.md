@@ -8,6 +8,47 @@ assumed — the starter ships one that already answers.
 
 ---
 
+## Run path for this project (unit 9, Path B: local, with logs)
+
+This is the path I actually ran and tested. Everything else in this file is the
+course's background.
+
+**Start command** (from the repository root, with the virtual environment active):
+
+```bash
+python app.py
+```
+
+It serves `http://127.0.0.1:5000`. Check it with
+`curl http://127.0.0.1:5000/health` (use `127.0.0.1`, not `localhost`, which on
+a Mac can resolve to another program on port 5000).
+
+**What the environment needs**
+
+| Needs | Version / size |
+|---|---|
+| Python | 3.13.7 tested; 3.11, 3.12 and 3.13 supported, not 3.14 |
+| Dependencies | `pip install -r requirements.txt`. Tested with Flask 3.1.3, Flask-Limiter 3.12, torch 2.15.0, transformers 4.57.6, requests 2.34.2 |
+| Model file | `gpt2`, 525 MB in `~/.cache/huggingface/hub/models--gpt2`, downloaded once by `python detector.py` |
+| Free disk | about 9 GB for the environment and model cache (`python test.py` checks this) |
+| Memory | about 440 MB once the model is loaded, about 720 MB after twenty requests |
+| Tested on | macOS 15.5, Apple M1, 8 GB RAM, CPU only |
+
+**What to expect.** The first `/submit` after a start takes about 7.5 seconds
+because it loads gpt2. After that a submission takes about 0.1 to 0.5 seconds,
+depending on its length.
+
+**Where the record goes.** Every `/submit` and `/appeal` request, including
+rejected and rate-limited ones, appends one JSON line to `logs/run.jsonl`
+(timestamp, route, status, outcome, input length, and `model_ms`, `style_ms`,
+`total_ms`). Decisions and appeals go to `logs/audit.jsonl` as before.
+
+**Measure it.** `python measure.py` starts the service on port 5051, sends a
+fixed set of submissions, and writes `results/measure_<time>.md` (cold start,
+warm median and p95, memory, model size).
+
+---
+
 ## Before your first class
 
 ```bash
