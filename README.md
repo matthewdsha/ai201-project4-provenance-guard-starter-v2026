@@ -1020,7 +1020,9 @@ called AI with an appeal nothing re-checks.
 
 <!-- ═══════════════════════ UNIT 9 — DEPLOY AND INSTRUMENT ═══════════════════════ -->
 
-## What This Extends
+## Capstone
+
+**What This Extends**
 
 This extends Provenance Guard, the Flask service from the last two units. It
 already takes text at `POST /submit`, scores it with gpt2 (`detector.model_signal`)
@@ -1031,7 +1033,7 @@ an attack set and an eval harness. What is new this unit is the operational
 layer around it: a run path anyone can follow, a structured log that records how
 long each request took, and measured numbers for what a run costs.
 
-## The Shape
+**The Shape**
 
 I am doing **A, deploy and instrument**, on **Path B (local with logs)**. I'm
 adding three things. First, per-request timing in `app.py::submit`: how long the
@@ -1054,7 +1056,7 @@ adding a metrics service: the log file and one script are the instrumentation.
 are each under thirty minutes, and none of them touches the scoring path, so I
 expect about ninety minutes in total.
 
-## Running It
+**Running It**
 
 Path B, local with logs. The full instructions, with the environment table, are
 in [RUNNING.md](RUNNING.md). The short version:
@@ -1068,7 +1070,7 @@ python app.py                       # serves http://127.0.0.1:5000
 
 `python app.py` loads gpt2 before it answers, so `/health` takes about four to
 six seconds to come up. After that every submission, the first included, takes
-tens to hundreds of milliseconds (before the change in The Improvement (unit 9),
+tens to hundreds of milliseconds (before the change in The Improvement,
 the model loaded inside the first `/submit` and that request took six to seven
 seconds). I
 I tested the steps from a fresh `git clone` in a separate folder, following
@@ -1081,7 +1083,7 @@ a first-time install would be: pip had the packages cached, and the gpt2 model
 was already in my Hugging Face cache, so the 525 MB download did not happen. I
 did not time or test those two downloads.
 
-## Instrumentation
+**Instrumentation**
 
 Every `/submit` and `/appeal` request appends one JSON line to
 `logs/run.jsonl`, written by `app.py::_log_request` through `runlog.write`. I
@@ -1134,7 +1136,7 @@ it was the first request after a start and loaded the model. Lines 2 to 10 took
 cost of a run. Rejected requests took under a millisecond, because the route
 refuses them before it calls gpt2.
 
-## What It Costs
+**What It Costs**
 
 The real cost of a run here is seconds of compute and memory on my own machine.
 There is no API spend, because gpt2 runs locally, and no token count to read off
@@ -1165,7 +1167,7 @@ seconds per warm submission** (run 2's mean of 0.18 s up to run 1's median of
 about 20 words and 356 ms for about 300.
 
 **Per run:** 0.18 s of compute in run 2, and 0.33 s as the upper end from run 1.
-Before the preload change in The Improvement (unit 9), a cold start added
+Before the preload change in The Improvement, a cold start added
 another 6 to 7.5 s inside the first request once per process start, and the process
 holds roughly 440 to 820 MB while it runs. Memory grew from 438 to 722 MB across
 run 1's warm requests but fell from 818 to 780 MB in run 2, so I have no
@@ -1175,14 +1177,14 @@ evidence of a leak.
 
 - 100 × 0.18 s = **18 s** of compute a day on run 2's mean
 - 100 × 0.33 s = **33 s** a day at the slower end
-- plus one cold start each time the service is started: 6 to 7.5 s inside the first request as measured here, and about 3.5 to 6 s before `/health` answers after the change in The Improvement (unit 9)
+- plus one cold start each time the service is started: 6 to 7.5 s inside the first request as measured here, and about 3.5 to 6 s before `/health` answers after the change in The Improvement
 
-That is under a minute of compute a day and no spend, so a hundred a day is far
-inside what one laptop can do. The cost that matters is not the compute but
+For a hundred people a day, one submission each, that is 18 to 33 seconds of
+compute and no spend, far inside what one laptop can do. The cost that matters is not the compute but
 the 525 MB model and the roughly 800 MB of memory it needs to stay loaded,
 which is why this does not fit a 512 MB free host.
 
-## Run Log and Verdicts (unit 9)
+**Run Log and Verdicts**
 
 I wrote the five criteria in [criteria.md](criteria.md) ("Unit 9 criteria") and
 committed them before any of this was run. `run_criteria.py` runs all five once,
@@ -1305,7 +1307,7 @@ passed with room because I time back-to-back restarts, where the operating
 system still has the model files cached; the criterion says it does not test a
 first start after a reboot, which would be slower, and I did not measure one.
 
-## The Improvement (unit 9)
+**The Improvement**
 
 **The pattern in the data.** No criterion missed, so there is no failure to
 trace. What the numbers do show is one stage that is far more expensive than
@@ -1404,6 +1406,59 @@ are `--run 4`, `5` and `6`, saved in `results/criteria_run_4` to `_6`):
   the criterion measures. The honest comparison is the startup table above, which
   includes the wait. If I kept this change I would rewrite criterion 2 to time
   from process start to the first label, and I have not.
+
+**What's Still Broken**
+
+No criterion was missed. All five were met in all six runs, three before the
+preload change and three after, so there is no missed criterion to say what I
+would do about. What is still broken is that my targets were set too loose to
+find anything, and one of them no longer measures what it was meant to:
+
+- **Criterion 1, warm latency:** 500 ms against a measured p95 of 186 to 265 ms.
+  I would tighten it to **300 ms**.
+- **Criterion 2, first submission:** 8,000 ms against 117 to 452 ms after the
+  change. This is the one that is now blind: it times the first submission after
+  `/health` answers, and I moved the model load to before that. I would make it
+  time from starting the process until the first label, with a target of
+  **6,000 ms**. That would have failed before the change (a median 6,742 ms in
+  `results/startup_before.md`) and passes after it (3,942 ms), which is the
+  difference I actually care about.
+- **Criterion 4, memory:** I would tighten the ceiling from 1,000 MB to
+  **750 MB** and the growth allowance from 100 MB to **25 MB**. Run 6 swung 89 MB
+  between request 50 and 100 with nothing different happening, so a 25 MB target
+  would need the median of several readings, not one.
+- **Criterion 5, refusal time:** 50 ms against a slowest refusal of 9.3 ms. I
+  would tighten it to **15 ms**.
+- **Criterion 3** is exact (37 lines for 37 requests) and cannot be tightened.
+
+I did not change these in `criteria.md`. I only know they are loose because of
+the results, and moving a target after seeing the results is the one move this
+unit says not to make; each of them is also its own change to build and measure.
+Two things I did not explain are still open: the two harnesses disagree by about
+two seconds on the old cold-start number, and the time from starting the process
+to the first label came out shorter after the change than I expected. Detection
+quality, the subject of units 7 and 8, is untouched and is described in the
+unit 8 section above.
+
+**If I had another unit, the first thing I would do** is rewrite criterion 2 to
+time from process start to the first label with a 6,000 ms target, and rerun it.
+I would do that one first because it is the only criterion that covers startup,
+my preload change made it pass without measuring the trade I made (a slower
+`/health` for a fast first request), and it is a few lines to change.
+
+**How I Used AI**
+
+**Moment 1**
+
+- *What I asked for:* After the five criteria were written, I asked Claude how it felt about them as a set.
+- *What came back:* It said they were solid but too safe. By its reading only criteria 1 and 4 could plausibly miss, criteria 3 and 5 overlapped on the same bad inputs, and nothing tested two requests arriving at once, which it called the failure most likely to break a service that runs on its own. It suggested replacing the logging check with a concurrency criterion.
+- *What I changed:* Nothing. I kept all five as written and committed them. All five then passed every run, so its point stands: no criterion I wrote tests simultaneous requests, and I do not know whether the service survives them.
+
+**Moment 2**
+
+- *What I asked for:* Once all five criteria were met, I asked Claude to choose and make the one improvement, since there was no miss to point it at.
+- *What came back:* It chose preloading gpt2 at startup. The reason was the data: the first `/submit` after a start took 4.3 to 6.5 s against about 0.15 s for every other request, because the model loads inside that request. It also said the wait would move rather than disappear. Its first version loaded the model only, and the first request still took 335 ms to 2 s until it added a throwaway scoring.
+- *What I changed:* I kept the change and ran the whole criteria set three more times. The README reports what it cost as well as what it fixed: `/health` now takes a median 3.8 s to answer, an idle service holds 586 to 779 MB, and criterion 2 passes without measuring the load.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
