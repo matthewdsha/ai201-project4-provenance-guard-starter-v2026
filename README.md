@@ -1178,6 +1178,129 @@ inside what one laptop can do. The cost that matters is not the compute but
 the 525 MB model and the roughly 800 MB of memory it needs to stay loaded,
 which is why this does not fit a 512 MB free host.
 
+## Run Log and Verdicts (unit 9)
+
+I wrote the five criteria in [criteria.md](criteria.md) ("Unit 9 criteria") and
+committed them before any of this was run. `run_criteria.py` runs all five once,
+starting a fresh `AI201_DEBUG=0 python app.py` for each criterion as the
+criteria say; I ran it three separate times (`--run 1`, `--run 2`, `--run 3`)
+with nothing changed in between. Everything each run produced is saved in
+`results/criteria_run_<n>/` (the service's own request log and audit log for
+each criterion) and `results/criteria_run_<n>.json` (what the client saw).
+Criterion 2 asks for three restarts, so run 1, 2 and 3 are its three restarts.
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Warm latency | p95 ≤ 500 ms, 20 of 20 return 200 | p95 225 ms, 20/20 ok | p95 244 ms, 20/20 ok | p95 197 ms, 20/20 ok | MET |
+| 2. Cold start | first submission ≤ 8,000 ms, 200 | 4,331 ms, HTTP 200 | 4,927 ms, HTTP 200 | 4,510 ms, HTTP 200 | MET |
+| 3. Request log complete | exactly 37 lines for 37 requests, all checks | 37/37 lines, 0 problems | 37/37 lines, 0 problems | 37/37 lines, 0 problems | MET |
+| 4. Memory bounded | ≤ 1,000 MB after 100 and ≤ +100 MB from 50 to 100 | 653 MB at 50, 645 MB at 100 (-8) | 642 MB at 50, 634 MB at 100 (-8) | 640 MB at 50, 645 MB at 100 (+5) | MET |
+| 5. Bad path | 10 of 10 exact refusals, ≤ 50 ms, none 429/500 | 10/10 correct, health 200 | 10/10 correct, health 200 | 10/10 correct, health 200 | MET |
+
+All five were met in all three runs. Nothing missed, so there is nothing to
+diagnose; the section after the output below says which targets I set too loose.
+
+Two things I changed to run this, neither of which touches the scoring path: I
+added an `AI201_AUDIT_LOG` environment variable in `config.py` (like
+`AI201_RUN_LOG`) so the roughly 170 audit entries each run produces stay out of
+`logs/audit.jsonl`, and the harness takes the process id from the process it
+started instead of `$!`, which is the same process.
+
+### Real output, from run 1
+
+**Criterion 1: warm latency.** Produced by `run_criteria.py::criterion_1`, which
+times each `requests.post` to `/submit` with `time.perf_counter()`. The 20 timings
+in milliseconds, all HTTP 200, p95 (the 19th fastest) 225.0:
+
+```
+[187.2, 157.4, 154.1, 225.0, 162.6, 154.9, 216.9, 172.6, 213.7, 254.9, 187.0, 205.1, 158.9, 149.8, 156.3, 159.0, 160.6, 155.4, 157.4, 162.4]
+```
+
+**Criterion 2: cold start.** Produced by `run_criteria.py::criterion_2`, the first
+`/submit` to a fresh process:
+
+```
+{"cold_ms": 4330.7, "status": 200}
+```
+
+**Criterion 3: the request log.** Written by `app.py::_log_request` through
+`runlog.write` into `results/criteria_run_1/crit3_run.jsonl`, checked by
+`run_criteria.py::criterion_3`. The file has 37 lines. These are line 1, then
+lines 21 to 37 (the ten bad requests, then the seven from `crit3_burst`, the last
+two of which are the rate-limit 429s):
+
+```json
+{"timestamp": "2026-11-12T00:13:49.692+00:00", "request_id": "03c1d386-4495-41d8-bd5e-b66ad75c782f", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 246, "creator_id": "crit3_valid_01", "total_ms": 4528.6, "model_ms": 4522.0, "style_ms": 0.3, "guess": "ai", "combined_score": 0.806}
+...
+{"timestamp": "2026-11-12T00:13:51.328+00:00", "request_id": "58fc9b8d-8dc6-460d-80f4-be4a41a34865", "route": "/submit", "status_code": 400, "outcome": "missing_text", "input_chars": null, "creator_id": "crit3_b01", "total_ms": 0.6}
+{"timestamp": "2026-11-12T00:13:51.330+00:00", "request_id": "15dc5136-1a0c-4bc0-83c4-b9736f87be88", "route": "/submit", "status_code": 400, "outcome": "missing_text", "input_chars": 0, "creator_id": "crit3_b02", "total_ms": 0.4}
+{"timestamp": "2026-11-12T00:13:51.332+00:00", "request_id": "8a5d767c-f68c-4ac2-978e-d3a46b5c58eb", "route": "/submit", "status_code": 400, "outcome": "missing_text", "input_chars": 4, "creator_id": "crit3_b03", "total_ms": 0.4}
+{"timestamp": "2026-11-12T00:13:51.334+00:00", "request_id": "a2df009f-9b86-4b4e-b2f9-fb8308eb3a15", "route": "/submit", "status_code": 400, "outcome": "missing_text", "input_chars": null, "creator_id": "crit3_b04", "total_ms": 0.3}
+{"timestamp": "2026-11-12T00:13:51.335+00:00", "request_id": "d992e7f9-a694-41e9-b26a-01e4206cba90", "route": "/submit", "status_code": 400, "outcome": "missing_creator_id", "input_chars": 246, "creator_id": null, "total_ms": 0.3}
+{"timestamp": "2026-11-12T00:13:51.337+00:00", "request_id": "dbbab450-9418-4d1c-add7-d0f71f989f3b", "route": "/submit", "status_code": 400, "outcome": "invalid_json", "input_chars": null, "creator_id": null, "total_ms": 0.4}
+{"timestamp": "2026-11-12T00:13:51.339+00:00", "request_id": "dfd0c28f-9a72-4bf2-8882-820410b3ef31", "route": "/submit", "status_code": 400, "outcome": "invalid_json", "input_chars": null, "creator_id": null, "total_ms": 0.5}
+{"timestamp": "2026-11-12T00:13:51.341+00:00", "request_id": "32f7a09d-fa42-479b-8b11-f6f86b856a1d", "route": "/submit", "status_code": 413, "outcome": "text_too_long", "input_chars": 100000, "creator_id": "crit3_b08", "total_ms": 0.4}
+{"timestamp": "2026-11-12T00:13:51.342+00:00", "request_id": "270414fa-4bbd-46cc-863a-5edaa96ec500", "route": "/appeal", "status_code": 404, "outcome": "unknown_content_id", "input_chars": null, "creator_id": null, "total_ms": 0.3}
+{"timestamp": "2026-11-12T00:13:51.343+00:00", "request_id": "1af68472-6423-4731-baee-57b7829406f6", "route": "/appeal", "status_code": 400, "outcome": "missing_reasoning", "input_chars": null, "creator_id": null, "total_ms": 0.1}
+{"timestamp": "2026-11-12T00:13:51.416+00:00", "request_id": "6a9f542b-cb06-4df2-9bf8-95465d900a9c", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 72.3, "model_ms": 71.7, "style_ms": 0.1, "guess": "ai", "combined_score": 0.806}
+{"timestamp": "2026-11-12T00:13:51.491+00:00", "request_id": "d7b27081-bb50-46fd-9be6-98b44a027ded", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 73.3, "model_ms": 72.7, "style_ms": 0.1, "guess": "ai", "combined_score": 0.806}
+{"timestamp": "2026-11-12T00:13:51.568+00:00", "request_id": "685cdde8-d29d-453f-abe9-1a6951f1ca2b", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 75.9, "model_ms": 75.2, "style_ms": 0.1, "guess": "ai", "combined_score": 0.806}
+{"timestamp": "2026-11-12T00:13:51.642+00:00", "request_id": "69e82080-dfc6-481c-ad9e-55f0453149d6", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 71.9, "model_ms": 71.2, "style_ms": 0.1, "guess": "ai", "combined_score": 0.806}
+{"timestamp": "2026-11-12T00:13:51.713+00:00", "request_id": "d098fd73-20d6-4a0b-98dd-b799e9661f17", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 69.9, "model_ms": 69.2, "style_ms": 0.1, "guess": "ai", "combined_score": 0.806}
+{"timestamp": "2026-11-12T00:13:51.715+00:00", "request_id": "e23d94f5-bdff-4b26-9552-20c1d495f852", "route": "/submit", "status_code": 429, "outcome": "rate_limited", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 0.4}
+{"timestamp": "2026-11-12T00:13:51.717+00:00", "request_id": "549c2f93-c3a1-40d6-a4a0-6b154ad592b7", "route": "/submit", "status_code": 429, "outcome": "rate_limited", "input_chars": 246, "creator_id": "crit3_burst", "total_ms": 0.3}
+```
+
+**Criterion 4: memory.** Produced by `run_criteria.py::criterion_4`, which reads
+`ps -o rss=` for the service's process three times a second apart after request
+50 and after request 100 and keeps the largest:
+
+```
+{"mb_after_50": 652.8, "mb_after_100": 644.6, "growth_mb": -8.2, "non_200": []}
+```
+
+**Criterion 5: the bad path.** Produced by `run_criteria.py::criterion_5`. Each
+line is one of the ten requests: what I wanted, what came back, the time in
+milliseconds, and the `outcome` on the matching line of the service's own log:
+
+```json
+{"case": "1 body is not JSON", "want": [400, "invalid_json"], "got": [400, "invalid_json"], "ms": 9.1, "logged_outcome": "invalid_json", "ok": true}
+{"case": "2 body is a JSON list", "want": [400, "invalid_json"], "got": [400, "invalid_json"], "ms": 2.1, "logged_outcome": "invalid_json", "ok": true}
+{"case": "3 text missing", "want": [400, "missing_text"], "got": [400, "missing_text"], "ms": 3.2, "logged_outcome": "missing_text", "ok": true}
+{"case": "4 text is empty", "want": [400, "missing_text"], "got": [400, "missing_text"], "ms": 2.2, "logged_outcome": "missing_text", "ok": true}
+{"case": "5 text is only spaces", "want": [400, "missing_text"], "got": [400, "missing_text"], "ms": 2.5, "logged_outcome": "missing_text", "ok": true}
+{"case": "6 text is 12345", "want": [400, "missing_text"], "got": [400, "missing_text"], "ms": 2.2, "logged_outcome": "missing_text", "ok": true}
+{"case": "7 text is null", "want": [400, "missing_text"], "got": [400, "missing_text"], "ms": 2.6, "logged_outcome": "missing_text", "ok": true}
+{"case": "8 creator_id missing", "want": [400, "missing_creator_id"], "got": [400, "missing_creator_id"], "ms": 1.8, "logged_outcome": "missing_creator_id", "ok": true}
+{"case": "9 text of 20,001 characters", "want": [413, "text_too_long"], "got": [413, "text_too_long"], "ms": 1.9, "logged_outcome": "text_too_long", "ok": true}
+{"case": "10 four words", "want": [400, "not_enough_words"], "got": [400, "not_enough_words"], "ms": 1.5, "logged_outcome": "not_enough_words", "ok": true}
+```
+
+### Which targets were set too loose
+
+Because nothing missed, the useful finding is how far inside each target the
+system landed:
+
+| Criterion | My target | Measured in the three runs | Tighter target I would set |
+|---|---|---|---|
+| 1. Warm p95 | 500 ms | 197, 225, 244 ms | **300 ms**: about 20% above the slowest run |
+| 2. Cold start | 8,000 ms | 4,331, 4,510, 4,927 ms | **6,000 ms**: but see the note below |
+| 4. Memory ceiling | 1,000 MB | 634 to 653 MB | **750 MB** |
+| 4. Memory growth, 50 to 100 | +100 MB | -8, -8, +5 MB | **+25 MB** |
+| 5. Refusal time | 50 ms | 7.8 to 9.3 ms slowest of ten | **15 ms** |
+
+Criterion 3 is already exact (37 of 37) and cannot be tightened.
+
+Two of my earlier expectations were wrong. I said criteria 1 and 4 were the ones
+likely to miss, because my two `measure.py` runs had a p95 of 190 and 570 ms for
+this text length and memory went from 438 to 722 MB. In these runs the same
+paragraph gave a p95 of 197 to 244 ms and memory did not grow at all. I did not
+find out why the two harnesses disagree. One candidate is that `measure.py` also
+sends 300-word texts, which allocate more, but I did not test that. Criterion 2
+passed with room because I time back-to-back restarts, where the operating
+system still has the model files cached; the criterion says it does not test a
+first start after a reboot, which would be slower, and I did not measure one.
+
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7

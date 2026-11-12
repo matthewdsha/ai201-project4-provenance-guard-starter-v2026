@@ -119,7 +119,7 @@ MIN_REAL_WORDS = 5
 # ─── Paths ───────────────────────────────────────────────────────────────────
 
 LOG_DIR = ROOT / "logs"
-AUDIT_LOG = LOG_DIR / "audit.jsonl"
+AUDIT_LOG = Path(os.getenv("AI201_AUDIT_LOG", LOG_DIR / "audit.jsonl"))
 
 # One structured line per request, with durations. Separate from the audit log
 # on purpose: the audit log records decisions, this one records how the service ran.

@@ -1,0 +1,10 @@
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_03", "event": "rejected", "status": "rejected", "reason": "missing_text"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_04", "event": "rejected", "status": "rejected", "reason": "missing_text"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_05", "event": "rejected", "status": "rejected", "reason": "missing_text"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_06", "event": "rejected", "status": "rejected", "reason": "missing_text"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_07", "event": "rejected", "status": "rejected", "reason": "missing_text"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_creator_id"}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_09", "event": "rejected", "status": "rejected", "reason": "text_too_long", "length": 20001, "max_length": 20000}
+{"timestamp": "2026-11-12T00:16:50+00:00", "creator_id": "crit5_10", "event": "rejected", "status": "rejected", "reason": "not_enough_words", "real_words": 4, "min_words": 5}
