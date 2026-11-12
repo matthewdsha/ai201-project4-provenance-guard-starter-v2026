@@ -1,0 +1,451 @@
+{
+  "run": 6,
+  "started": "2026-11-11 18:24:15",
+  "python": "3.13.7",
+  "criteria": {
+    "1": {
+      "passed": true,
+      "value": "p95 265 ms, 20/20 ok",
+      "p95_ms": 265.1,
+      "times_ms": [
+        201.8,
+        250.0,
+        346.5,
+        187.2,
+        167.2,
+        166.4,
+        196.8,
+        169.1,
+        169.5,
+        210.1,
+        219.7,
+        265.1,
+        201.8,
+        173.0,
+        177.3,
+        178.9,
+        184.9,
+        170.0,
+        179.1,
+        167.8
+      ],
+      "statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ]
+    },
+    "2": {
+      "passed": true,
+      "value": "452 ms, HTTP 200",
+      "cold_ms": 452.2,
+      "status": 200
+    },
+    "3": {
+      "passed": true,
+      "value": "37/37 lines, 0 problems",
+      "problems": [],
+      "lines_logged": 37,
+      "rate_limited_seen_by_client": 2,
+      "client_statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        400,
+        400,
+        400,
+        400,
+        400,
+        400,
+        400,
+        413,
+        404,
+        400,
+        200,
+        200,
+        200,
+        200,
+        200,
+        429,
+        429
+      ],
+      "sent": [
+        {
+          "label": "valid 1",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 2",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 3",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 4",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 5",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 6",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 7",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 8",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 9",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 10",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 11",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 12",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 13",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 14",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 15",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 16",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 17",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 18",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 19",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "valid 20",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "text missing",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "text empty",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "text whitespace",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "text is 12345",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "creator missing",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "body is a JSON list",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "body is not JSON",
+          "route": "/submit",
+          "status": 400
+        },
+        {
+          "label": "text 100,000 chars",
+          "route": "/submit",
+          "status": 413
+        },
+        {
+          "label": "appeal unknown id",
+          "route": "/appeal",
+          "status": 404
+        },
+        {
+          "label": "appeal no reasoning",
+          "route": "/appeal",
+          "status": 400
+        },
+        {
+          "label": "burst 1",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "burst 2",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "burst 3",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "burst 4",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "burst 5",
+          "route": "/submit",
+          "status": 200
+        },
+        {
+          "label": "burst 6",
+          "route": "/submit",
+          "status": 429
+        },
+        {
+          "label": "burst 7",
+          "route": "/submit",
+          "status": 429
+        }
+      ]
+    },
+    "4": {
+      "passed": true,
+      "value": "737 MB at 50, 648 MB at 100 (+-89)",
+      "mb_after_50": 737.2,
+      "mb_after_100": 648.1,
+      "growth_mb": -89.1,
+      "non_200": []
+    },
+    "5": {
+      "passed": true,
+      "value": "10/10 correct, health 200",
+      "results": [
+        {
+          "case": "1 body is not JSON",
+          "want": [
+            400,
+            "invalid_json"
+          ],
+          "got": [
+            400,
+            "invalid_json"
+          ],
+          "ms": 3.2,
+          "logged_outcome": "invalid_json",
+          "ok": true
+        },
+        {
+          "case": "2 body is a JSON list",
+          "want": [
+            400,
+            "invalid_json"
+          ],
+          "got": [
+            400,
+            "invalid_json"
+          ],
+          "ms": 1.5,
+          "logged_outcome": "invalid_json",
+          "ok": true
+        },
+        {
+          "case": "3 text missing",
+          "want": [
+            400,
+            "missing_text"
+          ],
+          "got": [
+            400,
+            "missing_text"
+          ],
+          "ms": 1.2,
+          "logged_outcome": "missing_text",
+          "ok": true
+        },
+        {
+          "case": "4 text is empty",
+          "want": [
+            400,
+            "missing_text"
+          ],
+          "got": [
+            400,
+            "missing_text"
+          ],
+          "ms": 1.1,
+          "logged_outcome": "missing_text",
+          "ok": true
+        },
+        {
+          "case": "5 text is only spaces",
+          "want": [
+            400,
+            "missing_text"
+          ],
+          "got": [
+            400,
+            "missing_text"
+          ],
+          "ms": 1.1,
+          "logged_outcome": "missing_text",
+          "ok": true
+        },
+        {
+          "case": "6 text is 12345",
+          "want": [
+            400,
+            "missing_text"
+          ],
+          "got": [
+            400,
+            "missing_text"
+          ],
+          "ms": 1.1,
+          "logged_outcome": "missing_text",
+          "ok": true
+        },
+        {
+          "case": "7 text is null",
+          "want": [
+            400,
+            "missing_text"
+          ],
+          "got": [
+            400,
+            "missing_text"
+          ],
+          "ms": 1.1,
+          "logged_outcome": "missing_text",
+          "ok": true
+        },
+        {
+          "case": "8 creator_id missing",
+          "want": [
+            400,
+            "missing_creator_id"
+          ],
+          "got": [
+            400,
+            "missing_creator_id"
+          ],
+          "ms": 1.2,
+          "logged_outcome": "missing_creator_id",
+          "ok": true
+        },
+        {
+          "case": "9 text of 20,001 characters",
+          "want": [
+            413,
+            "text_too_long"
+          ],
+          "got": [
+            413,
+            "text_too_long"
+          ],
+          "ms": 1.4,
+          "logged_outcome": "text_too_long",
+          "ok": true
+        },
+        {
+          "case": "10 four words",
+          "want": [
+            400,
+            "not_enough_words"
+          ],
+          "got": [
+            400,
+            "not_enough_words"
+          ],
+          "ms": 1.1,
+          "logged_outcome": "not_enough_words",
+          "ok": true
+        }
+      ],
+      "health_after": 200,
+      "lines_logged": 10
+    }
+  }
+}

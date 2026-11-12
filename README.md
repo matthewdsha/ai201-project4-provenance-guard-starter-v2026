@@ -1066,8 +1066,11 @@ python detector.py                  # once: downloads gpt2, 525 MB
 python app.py                       # serves http://127.0.0.1:5000
 ```
 
-The first `/submit` after a start takes about six to seven seconds because it
-loads gpt2. After that a submission takes tens to hundreds of milliseconds. I
+`python app.py` loads gpt2 before it answers, so `/health` takes about four to
+six seconds to come up. After that every submission, the first included, takes
+tens to hundreds of milliseconds (before the change in The Improvement (unit 9),
+the model loaded inside the first `/submit` and that request took six to seven
+seconds). I
 I tested the steps from a fresh `git clone` in a separate folder, following
 RUNNING.md as written: a new virtual environment, `pip install -r
 requirements.txt` (it installed the same versions listed in RUNNING.md, in about
@@ -1162,7 +1165,8 @@ seconds per warm submission** (run 2's mean of 0.18 s up to run 1's median of
 about 20 words and 356 ms for about 300.
 
 **Per run:** 0.18 s of compute in run 2, and 0.33 s as the upper end from run 1.
-A cold start adds another 6 to 7.5 s once per process start, and the process
+Before the preload change in The Improvement (unit 9), a cold start added
+another 6 to 7.5 s inside the first request once per process start, and the process
 holds roughly 440 to 820 MB while it runs. Memory grew from 438 to 722 MB across
 run 1's warm requests but fell from 818 to 780 MB in run 2, so I have no
 evidence of a leak.
@@ -1171,7 +1175,7 @@ evidence of a leak.
 
 - 100 × 0.18 s = **18 s** of compute a day on run 2's mean
 - 100 × 0.33 s = **33 s** a day at the slower end
-- plus one cold start, 6 to 7.5 s, each time the service is started
+- plus one cold start each time the service is started: 6 to 7.5 s inside the first request as measured here, and about 3.5 to 6 s before `/health` answers after the change in The Improvement (unit 9)
 
 That is under a minute of compute a day and no spend, so a hundred a day is far
 inside what one laptop can do. The cost that matters is not the compute but
@@ -1300,6 +1304,106 @@ sends 300-word texts, which allocate more, but I did not test that. Criterion 2
 passed with room because I time back-to-back restarts, where the operating
 system still has the model files cached; the criterion says it does not test a
 first start after a reboot, which would be slower, and I did not measure one.
+
+## The Improvement (unit 9)
+
+**The pattern in the data.** No criterion missed, so there is no failure to
+trace. What the numbers do show is one stage that is far more expensive than
+everything else: `detector.py::_load`, which loads gpt2 lazily on its first call,
+so the load happens inside the first `/submit` after every start. In run 1 that
+request took 4,331 ms against a warm p95 of 225 ms, and in
+`results/startup_before.md` it took 6.3 to 6.5 s against about 0.15 s warm, over
+forty times as long. The mechanism is that the cost belongs to the process
+starting, but the request path pays it, so whoever submits first after a restart
+or deploy waits about six seconds. It is also the target I said I would tighten
+first (criterion 2, 8,000 ms down to 6,000 ms), and the tighter target would be
+missed on the slower of my two harnesses. The two harnesses disagree by about two
+seconds on this number (4.3 to 4.9 s in `run_criteria.py`, 6.3 to 6.5 s in
+`measure_startup.py`) and I did not find out why.
+
+**The one change.** In `app.py::preload_detector`, called from `main()`, the
+service now loads gpt2 and scores one throwaway sentence before it starts
+answering. The first version loaded the model only, and the first `/submit` then
+still took 335 to 1,978 ms because the first forward pass has its own start-up
+cost, so I added the throwaway scoring. It is about twenty lines and does not
+touch the signals, the combining rule or the labels. If the model cannot load it
+prints that and carries on, so `/submit` still answers 503
+`detector_unavailable` as before. In debug mode only the Flask worker loads the
+model, not the reloader parent. `measure_startup.py` times three restarts
+(`results/startup_before.md` and `results/startup_after.md`).
+
+### Startup, before and after
+
+Before:
+
+| Restart | Until /health answers | model loaded at /health | First /submit | Start until first label | HTTP |
+|---|---|---|---|---|---|
+| 1 | 327 ms | False | 6,415 ms | 6,742 ms | 200 |
+| 2 | 324 ms | False | 6,512 ms | 6,836 ms | 200 |
+| 3 | 320 ms | False | 6,285 ms | 6,606 ms | 200 |
+| median | 324 ms | | 6,415 ms | 6,742 ms | |
+
+After:
+
+| Restart | Until /health answers | model loaded at /health | First /submit | Start until first label | HTTP |
+|---|---|---|---|---|---|
+| 1 | 5,785 ms | True | 102 ms | 5,886 ms | 200 |
+| 2 | 3,788 ms | True | 154 ms | 3,942 ms | 200 |
+| 3 | 3,674 ms | True | 155 ms | 3,829 ms | 200 |
+| median | 3,788 ms | | 154 ms | 3,942 ms | |
+
+### Criteria, before and after
+
+Before: the three runs already shown above, unchanged.
+
+After (the whole set rerun three times, nothing else changed in between; these
+are `--run 4`, `5` and `6`, saved in `results/criteria_run_4` to `_6`):
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Warm latency | p95 ≤ 500 ms, 20 of 20 return 200 | p95 199 ms, 20/20 ok | p95 186 ms, 20/20 ok | p95 265 ms, 20/20 ok | MET |
+| 2. Cold start | first submission ≤ 8,000 ms, 200 | 117 ms, HTTP 200 | 226 ms, HTTP 200 | 452 ms, HTTP 200 | MET |
+| 3. Request log complete | exactly 37 lines for 37 requests, all checks | 37/37 lines, 0 problems | 37/37 lines, 0 problems | 37/37 lines, 0 problems | MET |
+| 4. Memory bounded | ≤ 1,000 MB after 100 and ≤ +100 MB from 50 to 100 | 641 MB at 50, 642 MB at 100 (+1) | 641 MB at 50, 638 MB at 100 (-3) | 737 MB at 50, 648 MB at 100 (-89) | MET |
+| 5. Bad path | 10 of 10 exact refusals, ≤ 50 ms, none 429/500 | 10/10 correct, health 200 | 10/10 correct, health 200 | 10/10 correct, health 200 | MET |
+
+| Criterion | Before (runs 1 to 3) | After (runs 4 to 6) |
+|---|---|---|
+| 1. Warm p95 | 225, 244, 197 ms | 199, 186, 265 ms |
+| 2. First submission | 4,331, 4,927, 4,510 ms | 117, 226, 452 ms |
+| 4. Memory after 100 | 645, 634, 645 MB | 642, 638, 648 MB |
+| 4. Growth 50 to 100 | -8, -8, +5 MB | +1, -3, -89 MB |
+
+### Did it help?
+
+**Yes on what I aimed at, and it cost something elsewhere.**
+
+- **The first submission after a start went from 4.3 to 6.5 s to 0.1 to 0.5 s**
+  (criterion 2, and 6,415 ms to 154 ms median in `measure_startup.py`). Every
+  criterion still passes, so the verdicts do not change.
+- **The wait did not disappear, it moved.** `/health` used to answer in about
+  0.3 s and now takes a median 3.8 s, because the load happens before the
+  service starts answering. Anything that waits for the service to come up, a
+  deploy or a health check or me, now waits those seconds. The time from
+  starting the process until a writer has a label fell from a median 6.7 s to
+  3.9 s; I measured that and did not explain why it is shorter than the load plus
+  the first request used to be.
+- **An idle service now holds the model.** Before, the process sat near 40 MB
+  until the first request. Now it holds 586, 686 and 779 MB right after
+  `/health` answers, measured on three restarts. That matters for exactly the
+  reason this project cannot go on a 512 MB host.
+- **Nothing else got better.** Warm latency is within noise (p95 186 to 265 ms
+  against 197 to 244 ms before), and run 6 shows the memory reading is noisier
+  than I treated it: 737 MB after request 50 and 648 MB after 100, an 89 MB
+  swing in a run where the service did nothing different. It dropped, so the
+  run passed, but the same swing upward would have been within 11 MB of missing
+  the 100 MB growth target, so that target is looser than the noise I now know
+  about, and a pass does not show that memory is stable.
+- **Criterion 2 now passes trivially.** It waits for `/health` and then times
+  the first submission, so moving the load before `/health` removes it from what
+  the criterion measures. The honest comparison is the startup table above, which
+  includes the wait. If I kept this change I would rewrite criterion 2 to time
+  from process start to the first label, and I have not.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 

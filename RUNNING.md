@@ -61,9 +61,13 @@ return a `guess`, a `label` and both scores. The request is also written to
 | Memory | about 440 to 820 MB once the model is loaded (two measured runs) |
 | Tested on | macOS 15.5, Apple M1, 8 GB RAM, CPU only |
 
-**What to expect.** The first `/submit` after a start takes about 7.5 seconds
-because it loads gpt2 (6 to 7.5 s in my runs). After that a submission takes
-about 0.05 to 0.5 seconds, depending on its length.
+**What to expect.** `python app.py` loads gpt2 before it starts answering, so
+`/health` takes about 3.5 to 6 seconds to come up and reports
+`"detector_loaded": true`. Every `/submit` after that, the first included,
+takes about 0.05 to 0.5 seconds depending on its length. (Before this change the
+service answered `/health` in 0.3 s and the first `/submit` took 6 to 7.5 s,
+because it loaded gpt2 inside that request.) Once up, it holds about 600 to
+800 MB even with no traffic.
 
 **Where the record goes.** Every `/submit` and `/appeal` request, including
 rejected and rate-limited ones, appends one JSON line to `logs/run.jsonl`

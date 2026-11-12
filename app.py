@@ -24,6 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import os
 import re
 import time
 import uuid
@@ -392,11 +393,37 @@ def get_log():
     return jsonify({"count": len(entries), "entries": entries})
 
 
+def preload_detector():
+    """
+    Load gpt2 and score one throwaway sentence before the service starts
+    answering, so the first writer does not pay for either. Left to itself the model loads inside the first /submit, which
+    makes that request about thirty times slower than every other one.
+
+    If it can't load, say so and carry on: /submit still answers 503
+    `detector_unavailable` exactly as before. In debug mode Flask starts the
+    script twice (a reloader parent and the worker), and only the worker
+    needs the model.
+    """
+    if config.DEBUG and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+    import detector
+
+    started = time.perf_counter()
+    try:
+        detector.warm_up()
+        # One throwaway scoring: the first forward pass has its own start-up cost.
+        detector.model_signal("The market was busy on Saturday morning, and the vendors were selling fruit and bread.")
+        print(f"  model loaded:    {config.DETECTOR_MODEL} in {time.perf_counter() - started:.1f}s")
+    except detector.DetectorUnavailable as exc:
+        print(f"  model NOT loaded: {exc}\n  /submit will answer 503 until it is.")
+
+
 def main():
     print(f"Provenance Guard on http://{config.HOST}:{config.PORT}")
     print(f"  detector model:  {config.DETECTOR_MODEL}")
     print(f"  rate limiting:   {'ON' if config.RATE_LIMITING_ENABLED else 'off (unit 8)'}")
     print(f"  audit log:       {config.AUDIT_LOG}")
+    preload_detector()
     print()
     print("Check it's alive:")
     print(f'  curl -X POST http://{config.HOST}:{config.PORT}/ping \\')

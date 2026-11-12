@@ -1,0 +1,1 @@
+{"timestamp": "2026-11-12T00:22:20.953+00:00", "request_id": "6b6a7d41-6086-4399-abdc-c7d47e4f567d", "route": "/submit", "status_code": 200, "outcome": "ok", "input_chars": 331, "creator_id": "crit2_cold", "total_ms": 115.1, "model_ms": 113.1, "style_ms": 0.2, "guess": "ai", "combined_score": 0.772}
