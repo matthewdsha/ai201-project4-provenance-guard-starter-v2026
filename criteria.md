@@ -1,5 +1,7 @@
 # Acceptance criteria — Provenance Guard
 
+> **Unit 9's five criteria are at the bottom of this file**, under "Unit 9 criteria". Everything above them is from units 7 and 8 and is kept exactly as written.
+
 Five criteria that say what "working" means for this service, written in unit 7
 **before** you built it.
 
@@ -108,3 +110,155 @@ Eight bad submissions get a 4xx with a JSON `error` code, none gets a 500, and e
      A number you missed stays where it is, gets diagnosed, and gets a fix
      attempted. That's where the points are.
      ───────────────────────────────────────────────────────────────────────── -->
+
+---
+
+# Unit 9 criteria — the operational layer
+
+These five test what this unit added: the run path, the structured log
+(`logs/run.jsonl`) and the numbers `measure.py` reports. None of them is about
+how well the detector tells human from AI; that is units 7 and 8, and I am not
+changing it this unit. Each one is run in three trials, and a trial that misses
+the target is a miss.
+
+**How every criterion is run.**
+- The machine is an M1 MacBook, 8 GB, CPU only, Python 3.13.7. The millisecond
+  and megabyte targets are for this machine; on another one the numbers would
+  differ with nothing wrong in the system.
+- The service is started with `AI201_DEBUG=0 python app.py`. Without that,
+  debug mode starts a reloader parent and a worker, which are two processes
+  with very different memory. The gpt2 model is already on disk, and no other
+  copy of this service is running.
+- "Warm" means after the first `/submit` of that process.
+- Requests are sent one at a time, in the order given, with the `requests`
+  library. Timing is `time.perf_counter()` around the `requests.post` call.
+- Every request has its own `creator_id` (for example `crit_01`, `crit_02`)
+  unless a criterion says otherwise, so the rate limit of 5 a minute per
+  creator does not get involved.
+- Only `/submit` and `/appeal` write to `logs/run.jsonl`. Calls to `/health`
+  and `/ping` leave no line and are not counted anywhere below.
+
+## 1. Warm latency: a typical submission comes back in half a second
+
+After one warm-up request, send 20 submissions of the same paragraph (the
+10-sentence paragraph that `measure.py` in this repository builds with
+`paragraph(10)`, about 150 words) and time each. The 19th-fastest of the 20 (the p95) is at most **500
+ms**, and all 20 return 200. In each of three trials, each on a freshly
+started service.
+
+**Why this target:** My two measurement runs put the p95 for a text this long at
+190 ms and 570 ms, so the run-to-run spread is about two to three times and 500
+sits inside it: a target I might miss, which is the point. Under about half a
+second a writer does not notice the check; at a full second they do. A looser
+target such as 1,000 ms would pass even on the slow run and tell me nothing. A
+stricter one such as 250 ms would be a claim about my laptop on a good day, not
+about the system, because gpt2 on a CPU is the entire cost (`style_ms` is 0.1 to
+0.4 ms).
+
+## 2. Cold start: the first submission after a restart works, and within 8 seconds
+
+Start the service, wait until `/health` answers, then send one submission of
+about 60 words (`paragraph(4)` from `measure.py`) and time it. It returns 200 in
+at most **8,000 ms**. Do this three times, stopping and restarting the service
+each time, straight after each other. This is a restart with the model files
+recently read, so the operating system still has them in its file cache. A first
+start after a reboot would be slower, and this criterion does not test that.
+
+**Why this target:** The first request is the one that loads gpt2, and it is the
+request a restart or a deploy makes someone wait for. I measured 7,478, 5,934,
+6,007 and 3,811 ms, all on back-to-back restarts, so 8 s leaves little room
+above the slowest. A looser 15 s (the course's own estimate of "ten to twenty
+seconds") would hide a regression of more than a second; a stricter 5 s would
+already be missed by half of my earlier measurements and would be a claim about
+a faster machine.
+
+## 3. The request log is complete and consistent: one line per request, none missing
+
+Start the service with `AI201_RUN_LOG` pointing at a new empty file inside a
+folder that already exists (for example `logs/crit3_trial1.jsonl`; the service
+creates only the default `logs/` folder, and a path in a missing folder makes
+every request fail inside the log hook). Send these
+37 requests, one at a time, in this order:
+
+- 20 valid submissions of different paragraphs of 30 to 60 words.
+- 10 bad requests: `text` missing, `text` empty, `text` whitespace only,
+  `text` set to the number 12345, `creator_id` missing, a body that is a JSON
+  list, a body that is not JSON, `text` of 100,000 characters (`"word "` repeated
+  20,000 times), an appeal for a `content_id` that does not exist, and an appeal
+  with no `reasoning`.
+- 7 submissions, one straight after another, all with `creator_id` `crit_burst`.
+  The rate limit rejects the last two.
+
+Then read the file back. It has **exactly 37 lines**, every `request_id` is
+unique, every line has `timestamp`, `route`, `status_code`, `outcome` and
+`total_ms`, every successful `/submit` also has `model_ms`, `style_ms`, `guess`
+and `combined_score`, and each line's `status_code` equals the status the client
+received for that request, in the same order. In each of three trials.
+
+**Why this target:** The log is the only evidence this unit produces, so a
+missing line is worse than a slow request. My own README argues that a failure
+that shows only as an absence is one I will never find, and the rate-limit 429
+comes from an error handler rather than from the route, which is exactly the
+kind of path where a hook could silently not fire. The target is exact (37 of
+37) because "most requests are logged" cannot be told apart from a leak in the
+logging.
+
+## 4. Memory stays bounded: no growth across 100 submissions
+
+Start the service in the background (`AI201_DEBUG=0 python app.py &`) and note
+its process id with `$!` straight afterwards. Do not look the id up with
+`lsof` on port 5000: on macOS the AirPlay Receiver (`ControlCenter`) also
+listens there and shows up as a second process. Then send 100 submissions of the 150-word paragraph
+from criterion 1. After request 50 and again after request 100, read the
+resident memory with `ps -o rss= -p <pid>` three times, one second apart, take
+the largest, and divide by 1,024 to turn kilobytes into megabytes. The reading
+after 100 is at most **1,000 MB**, and it is no more than **100 MB** above the
+reading after 50. In each of three trials, each on a freshly started service.
+
+**Why this target:** This is the question I left open. In one measurement run
+memory went from 438 to 722 MB over 20 requests, which looks like a leak, and in
+the next it went from 818 to 780 MB, which does not. Readings on macOS wobble by
+tens of megabytes, so taking the largest of three keeps one low reading from
+hiding growth. If the service grows with every request it cannot run
+unattended, which is the whole point of this unit's run path. The 1,000 MB
+ceiling is the loaded model plus headroom on an 8 GB machine; a lower one would
+fail on the 818 MB I already measured with nothing wrong, and a higher one would
+stop meaning anything on this machine. Comparing request 100 to request 50
+separates a model that is simply large from one that keeps growing.
+
+## 5. The bad path: ten bad requests get the right refusal, quickly, and the service survives
+
+Start the service, then send these ten requests, each with its own
+`creator_id` except requests 1, 2 and 8, which have none. Each must return exactly the status and `error`
+code in the table, none may return a 500 or a 429, each must leave a line in
+`logs/run.jsonl` whose `outcome` equals that `error`, each must be answered in at
+most **50 ms**, and `/health` must still answer afterwards. In each of three
+trials, each on a freshly started service: requests 1, 2 and 8 are counted
+against the caller's address, the limit is 5 a minute, and the counter lives in
+the running process, so a second trial against the same process within a minute
+would be rate limited for a reason that has nothing to do with validation.
+
+| # | The request | Status | `error` |
+|---|---|---|---|
+| 1 | a body that is not JSON | 400 | `invalid_json` |
+| 2 | a body that is a JSON list | 400 | `invalid_json` |
+| 3 | `text` missing | 400 | `missing_text` |
+| 4 | `text` is `""` | 400 | `missing_text` |
+| 5 | `text` is only spaces | 400 | `missing_text` |
+| 6 | `text` is the number 12345 | 400 | `missing_text` |
+| 7 | `text` is `null` | 400 | `missing_text` |
+| 8 | valid `text`, `creator_id` missing | 400 | `missing_creator_id` |
+| 9 | `text` of 20,001 characters | 413 | `text_too_long` |
+| 10 | `text` of four words, "Too short to check." | 400 | `not_enough_words` |
+
+**Why this target:** Of the five criteria this is the one about things going
+wrong. Naming the exact code matters: a 429 or a wrong 4xx is also fast, logged
+and JSON, so "any 4xx" would pass without testing that validation caught the
+input. The 50 ms limit exists because a refusal should happen before gpt2 runs:
+in my session log the refusals took 0.4 to 0.8 ms and a real submission takes
+about 60 ms or more, so 50 ms passes if validation runs first and fails if a bad
+input ever reaches the model. That matters because an oversized text is the
+cheapest possible way to make the service do expensive work. I chose 50 ms rather
+than 5 because the point is to tell "refused up front" from "scored and then
+rejected", and a timing target tight enough to fail on laptop noise would test
+the laptop.
